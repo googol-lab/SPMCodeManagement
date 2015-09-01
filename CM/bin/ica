@@ -1,0 +1,150 @@
+#! /usr/bin/env python
+# This script compiles a C program and disassembles the binary.
+# In the compilation process, it creates two versions: a normal one and the one without library code. The normal one is an executable binary which will be used for gem5 simulation to obtain loop bounds by profiling. The one without library code is for static analysis which will done by another tool called 'ica'. The 'ica' tool, which will called by this script, parses the disassembly, construts an inlined control flow graph (CFG), and performs instruction cache analysis. The result will be contained in a file '<directory_name>.out', so it can be read by our code management tool 'cm' for WCET analysis.
+
+########################
+# This script only works when the input program can be built in a simple way like:
+# >ls
+#  driver.c util.h util.c common.h main.c
+# >gcc driver.c util.c main.c -o out
+# If the input program needs a more complicated Makefile and compiler flags, 
+#  the program has to be built manually.
+########################
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+
+# Parse program arguments.
+#parser = argparse.ArgumentParser(description= 'instruction cache analysis',
+#        usage='ica clean, ica make, or ica run --iconf cache_size line_size associativity')
+parser = argparse.ArgumentParser(description= 'inlined CFG construction',
+        usage='ica clean, ica make, or ica run')
+subparsers = parser.add_subparsers(dest='command', title='commands')
+parser_make  = subparsers.add_parser("make", help="make files")
+parser_run   = subparsers.add_parser("run", help="execute the program")
+parser_clean  = subparsers.add_parser("clean", help="clean up all generated files")
+parser_run.add_argument('--iconf', nargs='*')
+
+args = parser.parse_args()
+
+command = args.command      
+builddir = "_build/"
+
+# A generic makefile 
+makefile = """
+#platform = arm-linux-gnueabi-
+platform = arm-none-eabi-
+AS = $(platform)as
+CC = $(platform)gcc
+LD = $(platform)ld
+OBJCOPY = $(platform)objcopy
+OBJDUMP = $(platform)objdump
+
+ARCH=armv4
+
+CFLAGS = -c
+LDFLAGS = -O0 -Xlinker --fix-v4bx -Wl,-Ttext=0x10000 -Wl,--unresolved-symbols=ignore-all -nostdlib
+LDFLAGS_GEM5 = -O0 -lm -Xlinker --fix-v4bx -static 
+OBJ = ${builddir_obj_list}
+
+${builddir}%.o: ${builddir}%.s 
+	$(AS) -march=$(ARCH) $< -o $@
+
+${builddir}%.o: %.S 
+	$(AS) -march=$(ARCH) $< -o $@
+
+${builddir}%.o: %${ext}
+	$(CC) -march=$(ARCH) -mno-thumb-interwork $(CFLAGS) $< -o $@
+
+${builddir}${target}.bin: $(OBJ) 
+# 	Link
+	$(CC) $^ $(LDFLAGS) -o ${builddir}${target}
+	$(CC) $^ $(LDFLAGS_GEM5) --specs=nosys.specs -o ${builddir}${target}.4gem5
+	$(OBJCOPY) --only-section=.text ${builddir}${target} ${builddir}${target}.elf
+# 	Disassemble the elf 
+	$(OBJDUMP) --section=.text -d ${builddir}${target}.elf > ${builddir}${target}.asm
+	$(OBJDUMP) --section=.text -d ${builddir}${target}.4gem5 > ${builddir}${target}.4gem5.asm
+# 	Extract the binary part of the code
+	$(OBJCOPY) -Obinary --only-section=.text ${builddir}${target}.elf $@
+"""
+
+def create_builddir(path):
+    if not os.path.exists(path+builddir):
+        os.makedirs(path+builddir)
+
+# collect the names of the source files under current folder
+def get_src():
+    src_ext = ""
+    cwd = os.getcwd()
+    file_list = os.listdir(cwd)
+    src_list = []
+    for i in range(len(file_list)):
+        (root, ext) = os.path.splitext(file_list[i])    
+        if(ext == ".c" or ext == ".cpp" or ext == ".cc"):
+	    src_list.append(root)
+	    if (src_ext == ""):
+		src_ext = ext
+    # remove redundant items
+    src_list = list(set(src_list))
+    return src_list, src_ext
+
+# Create the makefile.
+def create_makefile(target):
+    # Get the names of source files
+    obj_list, ext = get_src()
+    obj_list_str = ""
+    for i in range(len(obj_list)):
+        obj_list_str = obj_list_str + builddir + obj_list[i] + ".o "
+	
+    # Create the make file
+    with open(builddir + 'Makefile', 'w') as f:
+        s = makefile
+        s = s.replace("${builddir_obj_list}", obj_list_str) 
+        s = s.replace("${target}", target)
+        s = s.replace("${builddir}", builddir) 
+        s = s.replace("${ext}", ext) 
+	f.write(s)
+
+
+def make():
+    command = ["make", "-f", builddir + "Makefile"] 
+    output = subprocess.call(command)
+
+def makeonly():
+    create_builddir('')
+    head, tail = os.path.split(os.getcwd())
+    create_makefile(tail)
+    make()	
+
+def run():
+        tail = os.path.basename(os.getcwd())
+	out_file = tail + ".out"
+	if args.iconf != None:
+		iconf = " " + ' '.join(args.iconf) + " "
+	else:
+		iconf = " "
+
+	scriptpath  = os.path.abspath(__file__)
+	scriptdir, scriptname = os.path.split(scriptpath)
+	path = scriptdir + "/../ica/"
+	command = path + "icache " + tail + iconf + " > " + out_file 
+	subprocess.call(command, shell=True)
+
+def remove_builddir(path):
+    if os.path.exists(path+builddir):
+        shutil.rmtree(path+builddir)
+
+# ========= Main =============
+
+# Check which command to run
+if command == "make":
+    makeonly()
+elif command == "run":
+    run()
+elif command == "clean":
+    remove_builddir('')
+
+    
