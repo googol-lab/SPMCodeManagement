@@ -18,7 +18,7 @@ What's needed
 - Gurobi solver for solving ILPs (www.gurobi.com)
 - ARM cross compiler toolchain (for simulation, use linux toolchains instead of bare metal ones)
 - Python 2.7 (3.x is not supported)
-- 
+ 
 ---------
 
 How to build and install
