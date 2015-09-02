@@ -11,12 +11,14 @@ For a given program, this program can:
 5) find a function-to-region mapping for minimizing WCET (ILP-based or heuristic),
 6) find a region-free mapping for minimizing WCET, and
 7) perform a timing simulation for code management on scratchpads using the mapping result from 5) or 6) (by modifing the gem5 simulator+).
+
 ---------
 
 What's needed 
 - Gurobi solver for solving ILPs (www.gurobi.com)
 - ARM cross compiler toolchain (for simulation, use linux toolchains instead of bare metal ones)
 - Python 2.7 (3.x is not supported)
+- 
 ---------
 
 How to build and install
@@ -50,6 +52,7 @@ How to build and install
       
         if env['TARGET_ISA'] != 'null':
         ...
+
 ---------
 
 How to run
@@ -63,6 +66,7 @@ How to run
     #cm test.out X h
   - Get an optimal region-free mapping by ILP and estimate the WCET, for SPM size X (in bytes).
     #cm test.out X orf
+
 ---------
 
 * Christoph Cullmann. 2011. Cache persistence analysis: a novel approachtheory and practice. 
