@@ -1,3 +1,4 @@
+```
 # SPMCodeManagement
 - Yooseong Kim, Sep. 2015
 
@@ -28,8 +29,8 @@ How to build and install
     - Edit `platform' in $(SPMCM)/CM/bin/ica (line 39) accoring to your toolchain name as same as the above. 
     - Edit GUROBIPATH, GUROBIVER, CC, and PYTHONPATH in $(SPMCM)/CM/Makefile according to your system. 
     - Build
-      cd $(SPMCM)/CM
-      make
+       cd $(SPMCM)/CM
+       make
    
     - Add $(SPMCM)/CM/bin to the PATH envionment variable.
       e.g. export PATH=$PATH:$(SPMCM)/CM/bin
@@ -40,10 +41,10 @@ How to build and install
     $(SPMCM)/sim contains modified source files of gem5 (atomic.cc, simulate.cc) and additional files (spm.cc and spm.hh). These can be added to an existing gem5 source tree. In case gem5 gets updated in the future and these files no longer work with the rest of the gem5, I've added a current working version of the entire gem5 source code as gem5.tar.gz in $(SPMCM)/sim. You can simply extract it and build it for ARM as normally you would (ex. #scons build/ARM/gem5.debug)
     - Modify an existing gem5 source code with the files in $(SPMCM)/sim as follows
       Let $(gem5) be the path of the downloaded gem5. 
-      cd $(gem5)
-      cp $(SPMCM)/sim/atomic.cc src/cpu/simple
-      cp $(SPMCM)/sim/simulate.cc src/sim
-      cp $(SPMCM)/sim/spm.* src/sim
+       cd $(gem5)
+       cp $(SPMCM)/sim/atomic.cc src/cpu/simple
+       cp $(SPMCM)/sim/simulate.cc src/sim
+       cp $(SPMCM)/sim/spm.* src/sim
     - Modify the scons script so that spm.cc can be compiled, by adding 'Source('spm.cc')' in src/sim/SConscript.
 
 ---------
@@ -71,4 +72,4 @@ How to run
  DOI=10.1145/2024716.2024718
  http://doi.acm.org/10.1145/2024716.2024718 
  http://gem5.org
- 
+ ```
