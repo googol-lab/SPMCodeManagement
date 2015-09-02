@@ -5,13 +5,13 @@
 This code is an implementation of the worst-case execution time (WCET)-aware code management on scratchpad memory. More details are found in "WCET-Aware Dynamic Code Management on Scratchpads for Software-Managed Multicores", published in the proceedings of the IEEE Real-Time and Embedded Technology and Application Symposium (RTAS),  2014. 
 
 For a given program, this program can:
-1. construct an inlined CFG,
-2. perform instruction cache analysis by Cullmann 2011*,
-3. calculate a WCET estimate using the cache analysis results,
-4. calculate a WCET estimate for a given function-to-region mapping in code management on scratchpads,
-5. find a function-to-region mapping for minimizing WCET (ILP-based or heuristic),
-6. find a region-free mapping for minimizing WCET, and
-7. perform a timing simulation for code management on scratchpads using the mapping result from 5. or 6. (by modifing the gem5 simulator+).
+1) construct an inlined CFG,
+2) perform instruction cache analysis by Cullmann 2011*,
+3) calculate a WCET estimate using the cache analysis results,
+4) calculate a WCET estimate for a given function-to-region mapping in code management on scratchpads,
+5) find a function-to-region mapping for minimizing WCET (ILP-based or heuristic),
+6) find a region-free mapping for minimizing WCET, and
+7) perform a timing simulation for code management on scratchpads using the mapping result from 5) or 6) (by modifing the gem5 simulator+).
 
 ---------
 
@@ -53,13 +53,13 @@ How to run
   We currently only support programs that can be compiled as simply as `gcc *.c'. All benchmarks in WCET suite and some in the MiBench suite can be compiled like this with little to no modification. Let us say your benchmark is in a directory name 'test'.
   #cd test
   - Generate an inlined CFG and perform cache analysis.
-    #cm g <cache_size> <cache_block_size> <associativity>
+     cm g <cache_size> <cache_block_size> <associativity>
   - Get an optimal function-to-region mapping by ILP and estimate the WCET, for SPM size X (in bytes).
-    #cm test.out X or
+     cm test.out X or
   - Get a function-to-region mapping by a heuristic and estimate the WCET, for SPM size X (in bytes).
-    #cm test.out X h
+     cm test.out X h
   - Get an optimal region-free mapping by ILP and estimate the WCET, for SPM size X (in bytes).
-    #cm test.out X orf
+     cm test.out X orf
 
 ---------
 
