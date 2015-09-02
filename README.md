@@ -22,7 +22,7 @@ What's needed
 How to build and install
   Let $(SPMCM) be the path of the downloaded code. There are two directories under $(SPMCM), CM and sim.
   1. The code management tool (1) - 6) from the above).
-    - Edit `toolchain' in $(SPMCM)/CM/ica/py_func.py according to your toolchain name. It is something like "arm-linux-eabi-".
+    - Edit 'toolchain' in $(SPMCM)/CM/ica/py_func.py according to your toolchain name. It is something like 'arm-linux-eabi-'.
     - Edit `platform' in $(SPMCM)/CM/bin/ica (line 39) accoring to your toolchain name as same as the above. 
     - Edit GUROBIPATH, GUROBIVER, CC, and PYTHONPATH in $(SPMCM)/CM/Makefile according to your system. 
     - Build
