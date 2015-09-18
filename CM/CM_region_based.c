@@ -840,7 +840,7 @@ long long int cm_region_optimal(long long int* fCost)
     return (long long int)objVal;
 }
 
-void wcet_analysis_fixed_input()
+long long int wcet_analysis_fixed_input()
 {
     BBType* node;
 
@@ -1415,5 +1415,7 @@ void wcet_analysis_fixed_input()
 
     free(M);
     FREESTACK
+
+    return (long long int)objVal;
 }
 

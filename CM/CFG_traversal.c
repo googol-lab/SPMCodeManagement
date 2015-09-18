@@ -338,8 +338,8 @@ void findIS()
                             }
                         }
                     } // for (funcIdx)
-                } // while (predEntry)
-            } // if (node->loopTailList)
+                } // while (loopTailEntry)
+            } // if (node->bLoopHead)
 
 
             if (node->predList || node->loopTailList) {
@@ -578,7 +578,7 @@ void findInitialLoadingPoints()
 
     free(Intersect);
 
-    int nAllBFirst = 1, nNewBFirst = 0;
+ //   int nAllBFirst = 1, nNewBFirst = 0;
 
     for (nIdx = 0; nIdx < nNode; nIdx++) {
         BBType* node = nodes[nIdx];
@@ -586,14 +586,15 @@ void findInitialLoadingPoints()
         if (node == rootNode || node->predList == NULL || node->bUnreachable == 1 || node->bLiteralPool == 1)
             continue;
 
+/*
         if (node->bFirst != 1-AEX[nIdx][node->EC]) {
             //printf("node%d: node->bFirst: %d  <-------> AEX-bassed bFirst: %d\n", nIdx, node->bFirst, 1-AEX[nIdx][node->EC]);
             nNewBFirst++;
         }
-
+*/
         if (AEX[nIdx][node->EC] == 0) {
             //printf("%d is an initial loading points of function %d\n", nIdx, node->EC);
-            nAllBFirst++;
+            //nAllBFirst++;
             node->bFirst = 1;
         }
     }
@@ -601,8 +602,9 @@ void findInitialLoadingPoints()
     for (nIdx = 0; nIdx < nNode; nIdx++)
         free(AEX[nIdx]);
     free(AEX);
-
-    //printf("-------------------------------\n");
-    //printf("all bFirst: %d (including the root node) new bFirst: %d\n", nAllBFirst, nNewBFirst);
-    //printf("-------------------------------\n");
+/*
+    printf("-------------------------------\n");
+    printf("all bFirst: %d (including the root node) new bFirst: %d\n", nAllBFirst, nNewBFirst);
+    printf("-------------------------------\n");
+*/
 }
