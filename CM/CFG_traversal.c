@@ -341,7 +341,6 @@ void findIS()
                 } // while (loopTailEntry)
             } // if (node->bLoopHead)
 
-
             if (node->predList || node->loopTailList) {
                 for (funcIdx = 0; funcIdx < nFunc; funcIdx++) {
                     for (listIdx = 0; listIdx <nFunc; listIdx++) {
@@ -552,19 +551,37 @@ void findInitialLoadingPoints()
 
             if (node->predList && node->bUnreachable == 0 && node->bLiteralPool == 0) {
                 for (fIdx = 0; fIdx < nFunc; fIdx++)
-                    Intersect[fIdx] = 1;
+                    Intersect[fIdx] = 1; // at first, assume every function has been executed
 
                 // visit every predecessor
-                BBListEntry *predEntry = node->predList;
+                BBListEntry* predEntry = node->predList;
                 while (predEntry) {
                     BBType* predNode = predEntry->BB;
 
-                    // Take an Intersect
+                    // Take an Intersection
                     for (fIdx = 0; fIdx < nFunc; fIdx++) {
                         if (fIdx != predNode->EC && AEX[predNode->ID][fIdx] == 0)
-                            Intersect[fIdx] = 0;
+                            Intersect[fIdx] = 0;    // mark out the ones that haven't actually executed
                     }
                     predEntry = predEntry->next;
+                }
+
+                // added handling for the virtual backedge
+                //  this won't change the final AEX sets because we're taking an intersection 
+                //   and considering more edges won't change the intersection. (Union may change...)
+                if (nodes[nIdx]->bLoopHead) {
+                    BBListEntry* loopTailEntry = node->loopTailList;
+                    while (loopTailEntry) {
+                        BBType* loopTail = loopTailEntry->BB;
+
+                        // Take an Intersection
+                        for (fIdx = 0; fIdx < nFunc; fIdx++) {
+                            if (fIdx != loopTail->EC && AEX[loopTail->ID][fIdx] == 0)
+                                Intersect[fIdx] = 0;
+                        }
+                
+                        loopTailEntry = loopTailEntry->next;
+                    }
                 }
 
                 for (fIdx = 0; fIdx < nFunc; fIdx++) {
@@ -578,7 +595,7 @@ void findInitialLoadingPoints()
 
     free(Intersect);
 
- //   int nAllBFirst = 1, nNewBFirst = 0;
+    //int nAllBFirst = 1, nNewBFirst = 0;
 
     for (nIdx = 0; nIdx < nNode; nIdx++) {
         BBType* node = nodes[nIdx];
