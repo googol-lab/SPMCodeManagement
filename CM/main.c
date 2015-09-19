@@ -32,8 +32,8 @@ extern FILE* yyin;
 
 int SPMSIZE;
 
-//int dbgFlag = 1;
-int dbgFlag = 0;
+int dbgFlag = 1;
+//int dbgFlag = 0;
 
 int main(int argc, const char* argv[])
 {   
