@@ -5,9 +5,13 @@
 
 void addBBToList(BBType*, BBListEntry**);
 void freeBBList(BBListEntry**);
+BBListEntry* duplicateBBList(BBListEntry*);
 
 BBType* getBBListHead(BBListEntry*);
 BBType* getBBListTail(BBListEntry*);
+
+BBListEntry* findEntryInNodeList(BBType* node, BBListEntry* nodeList);
+int isBBInNodeList(BBType* node, BBListEntry* nodeList);
 
 void dom_init();
 void dom_free();

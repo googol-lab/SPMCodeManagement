@@ -23,7 +23,7 @@
 
 #include "CM_region_based.h"
 #include "CM_region_free.h"
-//#include "split_wrapper.h"
+#include "split_wrapper.h"
 
 int yyparse();
 
@@ -79,10 +79,7 @@ int main(int argc, const char* argv[])
     }
     yyparse();
     
-    //maxEC = nFunc-1;
-
     initUnreachable();
-    //initEC();
 
     initIS();
     
@@ -95,8 +92,6 @@ int main(int argc, const char* argv[])
     /////////////////////////////////////////////////////////////////////////////
     adjustLoopBounds();
 
-    //initBFirst();
-
     findInitialLoadingPoints();
 
     //////////
@@ -105,7 +100,6 @@ int main(int argc, const char* argv[])
     int maxFuncSize = findMaxFuncSize();
     int totalCodeSize = findTotalCodeSize();
  
-
     if (argc == 3)
     {
         if (strcmp(argv[2], "size") == 0)
@@ -155,9 +149,6 @@ int main(int argc, const char* argv[])
 
     }
 
-    ////////// ILP
-    int v, f, g, r;
-    
     switch (runmode)
     {
     case CACHE:
@@ -170,10 +161,11 @@ int main(int argc, const char* argv[])
         cm_rf_optimal(NULL);
         break;
     case FS:
-        //cm_fs();
+        cm_fs();
         break;
     case HEU:
-        runHeuristic(SPMSIZE);
+        if (runHeuristic(SPMSIZE) == -1)
+            break;
     case FIXED:
         wcet_analysis_fixed_input();
         break;

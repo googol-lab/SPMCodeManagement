@@ -840,7 +840,7 @@ long long int cm_region_optimal(long long int* fCost)
     return (long long int)objVal;
 }
 
-void wcet_analysis_fixed_input()
+long long int wcet_analysis_fixed_input()
 {
     BBType* node;
 
@@ -867,7 +867,10 @@ void wcet_analysis_fixed_input()
     }
     for (f = 0; f < nFunc; f++) {
         fscanf(fp, "%d\n", &M[f]);
-        printf("Function %d (size %d) is mapped to Region %d\n", f, functions[f].size, M[f]);
+        if (functions[f].parent == -1)
+            printf("Function %d (size %d) is mapped to Region %d\n", f, functions[f].size, M[f]);
+        else
+            printf("Function %d (size %d) is a child of function %d and mapped to Region %d\n", f, functions[f].size, functions[f].parent, M[f]);
     }
     fclose(fp);
 
@@ -1415,5 +1418,7 @@ void wcet_analysis_fixed_input()
 
     free(M);
     FREESTACK
+
+    return (long long int)objVal;
 }
 

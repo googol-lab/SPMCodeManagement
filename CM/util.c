@@ -44,6 +44,18 @@ void freeBBList(BBListEntry** list)
     }
 }
 
+BBListEntry* duplicateBBList(BBListEntry* list)
+{
+    BBListEntry* newList = NULL;
+    BBListEntry* entry = list;
+    while (entry) {
+        addBBToList(entry->BB, &newList);
+        entry = entry->next;
+    }
+
+    return newList;
+}
+
 BBType* getBBListHead(BBListEntry* list)
 {
     if (list != NULL)
@@ -65,21 +77,37 @@ BBType* getBBListTail(BBListEntry* list)
         return NULL;
 }
 
+
+BBListEntry* findEntryInNodeList(BBType* node, BBListEntry* nodeList)
+{
+    BBListEntry* entry = nodeList;
+    while (entry) {
+        if (entry->BB == node)
+            return entry;
+        entry = entry->next;
+    }
+
+    return NULL;
+}
+
+int isBBInNodeList(BBType* node, BBListEntry* nodeList)
+{
+    BBListEntry* entry = nodeList;
+    while (entry) {
+        if (entry->BB == node) 
+            return 1;
+
+        entry = entry->next;
+    } 
+
+    return 0;
+}
+
 int isUdomV(BBType *u, BBType *v)
 {
     if (dom[u->ID][v->ID] != -1)
         return dom[u->ID][v->ID];
-/*
-    static int* bVisited = NULL;
-    if (bStart == 1)
-    {
-        if (bVisited == NULL)
-            bVisited = (int*)calloc(nMaxNode, sizeof(int));
-        int i;
-        for (i = 0; i < nMaxNode; i++)
-            bVisited[i] = 0;
-    }
-*/
+
     if (u == v)
     {
         dom[u->ID][v->ID] = 1;
@@ -87,11 +115,6 @@ int isUdomV(BBType *u, BBType *v)
         return 1;
     }
 
-/*
-    if (bVisited[v->ID] == 1)
-        return 0;
-    bVisited[v->ID] = 1;
-*/
     if (v->predList == NULL && v->bUnreachable == 0)
         return 0;
 
@@ -106,6 +129,7 @@ int isUdomV(BBType *u, BBType *v)
         predList = predList->next;
     }
 
+/*
     // After back edge is removed...
     if (v->bLoopHead) {
         BBListEntry* loopTailEntry = v->loopTailList;
@@ -119,14 +143,6 @@ int isUdomV(BBType *u, BBType *v)
             loopTailEntry = loopTailEntry->next;
         }
     }
-
-/*
-    if (bStart == 1)
-    {
-        int i;
-        for (i = 0; i < nMaxNode; i++)
-            bVisited[i] = 0;
-    }
 */
     dom[u->ID][v->ID] = 1;
     return 1;
@@ -137,28 +153,13 @@ int isVpdomU(BBType *u, BBType *v)
 {
     if (pdom[v->ID][u->ID] != -1)
         return pdom[v->ID][u->ID];
-/*
-    static int* bVisited = NULL;
-    if (bStart == 1)
-    {
-        if (bVisited == NULL)
-            bVisited = (int*)calloc(nMaxNode, sizeof(int));
-        int i;
-        for (i = 0; i < nMaxNode; i++)
-            bVisited[i] = 0;
-    }
-*/
+
     if (u == v)
     {
         pdom[v->ID][u->ID] = 1;
         pdom[u->ID][v->ID] = 1;
         return 1;
     }
-/*
-    if (bVisited[u->ID] == 1)
-        return 0;
-    bVisited[u->ID] = 1;
-*/
 
     if (u->succList == NULL)
         return 0;
@@ -175,15 +176,6 @@ int isVpdomU(BBType *u, BBType *v)
 
         succList = succList->next;
     }
-
-/*
-    if (bStart == 1)
-    {
-        int i;
-        for (i = 0; i < nMaxNode; i++)
-            bVisited[i] = 0;
-    }
-*/
 
     pdom[v->ID][u->ID] = 1;
     return 1;

@@ -305,9 +305,20 @@ int getWCET(int* funcMap)
     return dist[distMaxNode->ID];
 }
 
-void runHeuristic(int SPMSIZE)
+int runHeuristic(int SPMSIZE)
 {
     struct timeval tvBegin, tvEnd, tvDiff;
+
+    int i;
+    int bError = 0;
+    for (i = 0; i < nFunc; i++) {
+        if (functions[i].size > SPMSIZE) {
+            printf("SPMSIZE (%d) is smaller than function %d (size %d)\n", SPMSIZE, i, functions[i].size);
+            bError = 1;
+        }
+    }
+    if (bError)
+        return -1;
 
     initVisited();
 
@@ -320,7 +331,6 @@ void runHeuristic(int SPMSIZE)
     tpoStartIdx = TPOvisit(rootNode, tpoSortedNodes, 0);
     R = NULL;
     initRegions(&R);
-    int i;
     for (i = 0; i < nFunc; i++)
     {
         R[i].func[i] = 1;
@@ -427,10 +437,6 @@ void runHeuristic(int SPMSIZE)
     int WCETM = getWCET(funcMapMerge);
     int WCETP = getWCET(funcMapPartition); 
 
-    //printf("M(0): %d, P(1): %d\n", WCETM, WCETP);
-    //int input;
-    //scanf("%d", &input);
-    //if (input == 0)
     if (WCETM < WCETP)
     {
         printf("merge is taken\n");
@@ -456,10 +462,12 @@ void runHeuristic(int SPMSIZE)
     }
     fclose(fp);
 
+    free(tpoSortedNodes);
     freeRegions(&R);
     free(funcMapMerge);
     free(funcMapPartition);
-    //free(funcMap);
+
+    return 0;
 }
 
 
