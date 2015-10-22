@@ -15,7 +15,7 @@ extern int nCSNode;
 
 extern struct _BBListEntry* VcNodes; 
 
-typedef enum {NA, AH, AM, FM} ACCESS;
+#define BBLEVEL_CM
 
 typedef struct _BBType
 {
@@ -33,7 +33,10 @@ typedef struct _BBType
     int L;
     int Vc;
     struct _BBType* callee;
-    int nT;
+    //int nT;
+#ifdef BBLEVEL_CM
+    int bLoaded;
+#endif
 
     int bLiteralPool;
     //int caller;
@@ -46,8 +49,6 @@ typedef struct _BBType
     struct _BBListEntry* loopTailList;
     struct _BBType* loopHead;
     struct _BBListEntry* preLoopList;
-
-    ACCESS ac;
 
     //int bTerminal;
     //int bLoopExit;

@@ -210,8 +210,10 @@ void newBB(char* name, unsigned int addr, int EC, int FS, int AH, int AM, int FM
 
     bb->L = -1;
     bb->Vc = 0;
-    bb->nT = 0;
-    bb->ac = NA;
+    //bb->nT = 0;
+#ifdef BBLEVEL_CM
+    bb->bLoaded = 0;
+#endif
 
     //bb->bTerminal = 0;
     //bb->succInLoop = NULL;
