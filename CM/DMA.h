@@ -14,5 +14,6 @@
 #endif
 
 int Cdma(int functionID);
+int CdmaByBytes(int nBytes);
 
 #endif

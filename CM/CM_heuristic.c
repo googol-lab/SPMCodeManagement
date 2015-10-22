@@ -204,7 +204,7 @@ void loadFuncMap(region *R, int* funcMap)
     }
 }
 
-BBType** tpoSortedNodes;
+BBType** tpoSortedNodes = NULL;
 int tpoStartIdx;
 
 int getWCET(int* funcMap)
@@ -322,6 +322,8 @@ int runHeuristic(int SPMSIZE)
 
     initVisited();
 
+    if (tpoSortedNodes != NULL)
+        free(tpoSortedNodes);
     tpoSortedNodes = (BBType**)malloc(sizeof(BBType*) * nNode);
     tpoStartIdx = 0;
 

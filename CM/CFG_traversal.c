@@ -450,36 +450,6 @@ int isDirectlyReachable(BBType* from, BBType* to, int bStart)
     return bReachable;
 }
 
-void initBFirst()
-{
-    BBType* node;
-
-    int *checkEC = (int*)calloc(nFunc, sizeof(int));
-    checkEC[rootNode->EC] = 1;
-
-    // First do a topological sort
-    BBType** tpoSortedNodes = (BBType**)malloc(sizeof(BBType)*nNode);
-    int tpoStartIdx = 0;
-
-    initVisited();
-    tpoStartIdx = TPOvisit(rootNode, tpoSortedNodes, 0);
-
-    int i;
-    for (i = tpoStartIdx-2; i >= 0; i--) {
-        node = tpoSortedNodes[i];
-
-        if (checkEC[node->EC] == 0) {
-            node->bFirst = 1;
-            checkEC[node->EC] = 1;
-        }
-    }
-
-    rootNode->bFirst = 0;
-
-    free(tpoSortedNodes);
-    free(checkEC);
-}
-
 // get a set of all rechable functions from f (callees, callees of a callee, ... )
 int* get_rList(int f, int* rList)
 {
