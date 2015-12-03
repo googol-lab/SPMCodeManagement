@@ -343,6 +343,15 @@ int findMaxFuncSize()
     return maxFuncSize;
 }
 
+void takeOutLiteralPools()
+{
+    int n;
+    for (n = 0; n < nNode; n++) {
+        if (nodes[n]->bLiteralPool)
+            functions[nodes[n]->EC].size -= nodes[n]->S * 4;
+    }
+}
+
 void quit(int error, GRBenv *env)
 {
     if (error)
@@ -352,4 +361,164 @@ void quit(int error, GRBenv *env)
     }
 }
 
+void freeCFG(int _nNode, int _nFunc, BBType ***_nodes, funcType **_functions)
+{
+    int bIdx, fIdx;
+    if (*_nodes) {
+        for (bIdx = 0; bIdx < _nNode; bIdx++) {
+            if ((*_nodes)[bIdx]->name)
+                free((*_nodes)[bIdx]->name);
+
+            if ((*_nodes)[bIdx]->preLoopList)
+                freeBBList(&((*_nodes)[bIdx]->preLoopList));
+
+            if ((*_nodes)[bIdx]->loopTailList)
+                freeBBList(&((*_nodes)[bIdx]->loopTailList));
+
+            if ((*_nodes)[bIdx]->predList)
+                freeBBList(&((*_nodes)[bIdx]->predList));
+            if ((*_nodes)[bIdx]->succList)
+                freeBBList(&((*_nodes)[bIdx]->succList));
+
+            if ((*_nodes)[bIdx]->IS) {
+                for (fIdx = 0; fIdx < _nFunc; fIdx++)
+                    free((*_nodes)[bIdx]->IS[fIdx]);
+                free((*_nodes)[bIdx]->IS);
+            }
+            free((*_nodes)[bIdx]);
+        }
+        free((*_nodes));
+        *_nodes = NULL;
+    }
+
+    if (*_functions) {
+        for (fIdx = 0; fIdx < _nFunc; fIdx++) {
+            if ((*_functions)[fIdx].nAddrRange)
+                free((*_functions)[fIdx].addrRange);
+
+            if ((*_functions)[fIdx].childrenIDs)
+                free((*_functions)[fIdx].childrenIDs);
+
+            if ((*_functions)[fIdx].entryPoints)
+                free((*_functions)[fIdx].entryPoints);
+            if ((*_functions)[fIdx].exitPoints)
+                free((*_functions)[fIdx].exitPoints);
+        }
+        free((*_functions));
+        *_functions = NULL;
+    }
+}
+
+void backupCFG(int *nNodeBak, int *nFuncBak, BBType ***nodesBak, funcType **functionsBak)
+{
+    freeCFG(*nNodeBak, *nFuncBak, nodesBak, functionsBak);
+
+    int bIdx, fIdx, lIdx;
+
+    *nNodeBak = nNode;
+    *nodesBak = (BBType**)malloc(sizeof(BBType*) * *nNodeBak);
+    for (bIdx = 0; bIdx < *nNodeBak; bIdx++)
+        (*nodesBak)[bIdx] = (BBType*)malloc(sizeof(BBType));
+
+    for (bIdx = 0; bIdx < *nNodeBak; bIdx++) {
+        memcpy((*nodesBak)[bIdx], nodes[bIdx], sizeof(BBType));
+
+        if (nodes[bIdx]->callee)
+            (*nodesBak)[bIdx]->callee = (*nodesBak)[nodes[bIdx]->callee->ID];
+
+        (*nodesBak)[bIdx]->loopTailList = NULL;
+        if (nodes[bIdx]->loopTailList) {
+            BBListEntry *loopTailEntry = nodes[bIdx]->loopTailList;
+            while (loopTailEntry) {
+                addBBToList((*nodesBak)[loopTailEntry->BB->ID], &((*nodesBak)[bIdx]->loopTailList));
+                loopTailEntry = loopTailEntry->next;
+            }
+        }
+        if (nodes[bIdx]->loopHead)
+            (*nodesBak)[bIdx]->loopHead = (*nodesBak)[nodes[bIdx]->loopHead->ID];
+
+        (*nodesBak)[bIdx]->preLoopList = NULL;
+        BBListEntry* preLoopEntry = nodes[bIdx]->preLoopList;
+        while (preLoopEntry) {
+            addBBToList((*nodesBak)[preLoopEntry->BB->ID], &((*nodesBak)[bIdx]->preLoopList));
+            preLoopEntry = preLoopEntry->next;
+        }
+
+        (*nodesBak)[bIdx]->predList = NULL;
+        BBListEntry* predEntry = nodes[bIdx]->predList;
+        while (predEntry) {
+            addBBToList((*nodesBak)[predEntry->BB->ID], &((*nodesBak)[bIdx]->predList));
+            predEntry = predEntry->next;
+        }
+
+        (*nodesBak)[bIdx]->succList = NULL;
+        BBListEntry* succEntry = nodes[bIdx]->succList;
+        while (succEntry) {
+            addBBToList((*nodesBak)[succEntry->BB->ID], &((*nodesBak)[bIdx]->succList));
+            succEntry = succEntry->next;
+        }
+
+        if (nodes[bIdx]->IS != NULL) {
+            (*nodesBak)[bIdx]->IS = (int**)malloc(sizeof(int*) * nFunc);
+            for (fIdx = 0; fIdx < nFunc; fIdx++) {
+                (*nodesBak)[bIdx]->IS[fIdx] = (int*)malloc(sizeof(int) * nFunc);
+                for (lIdx = 0; lIdx < nFunc; lIdx++) {
+                    (*nodesBak)[bIdx]->IS[fIdx][lIdx] = nodes[bIdx]->IS[fIdx][lIdx];
+                }
+            }
+        }
+        else
+            (*nodesBak)[bIdx]->IS = NULL;
+    }
+
+    *nFuncBak = nFunc;
+    *functionsBak = (funcType*)malloc(sizeof(funcType) * nFunc);
+    for (fIdx = 0; fIdx < nFunc; fIdx++) {
+        memcpy(&((*functionsBak)[fIdx]), &(functions[fIdx]), sizeof(funcType));
+
+        if (functions[fIdx].nAddrRange > 0) {
+            (*functionsBak)[fIdx].addrRange = (addrRangeType*)malloc(sizeof(addrRangeType) * functions[fIdx].nAddrRange);
+            int rIdx;
+            for (rIdx = 0; rIdx < functions[fIdx].nAddrRange; rIdx++) {
+                (*functionsBak)[fIdx].addrRange[rIdx].startAddr = functions[fIdx].addrRange[rIdx].startAddr;
+                (*functionsBak)[fIdx].addrRange[rIdx].size = functions[fIdx].addrRange[rIdx].size;
+            }
+        }
+
+        if (functions[fIdx].nChildren > 0) {
+            (*functionsBak)[fIdx].childrenIDs = (int*)malloc(sizeof(int) * functions[fIdx].nChildren);
+            int cIdx;
+            for (cIdx = 0; cIdx < functions[fIdx].nChildren; cIdx++) {
+                (*functionsBak)[fIdx].childrenIDs[cIdx] = functions[fIdx].childrenIDs[cIdx];
+            }
+        }
+
+        if (functions[fIdx].entryPoints) {
+            (*functionsBak)[fIdx].entryPoints = (BBType**)malloc(sizeof(BBType*) * functions[fIdx].nOccurrence);
+            int pIdx;
+            for (pIdx = 0; pIdx < functions[fIdx].nOccurrence; pIdx++)
+                (*functionsBak)[fIdx].entryPoints[pIdx] = (*nodesBak)[functions[fIdx].entryPoints[pIdx]->ID]; 
+        }
+        if (functions[fIdx].exitPoints) {
+            (*functionsBak)[fIdx].exitPoints = (BBType**)malloc(sizeof(BBType*) * functions[fIdx].nOccurrence);
+            int pIdx;
+            for (pIdx = 0; pIdx < functions[fIdx].nOccurrence; pIdx++)
+                (*functionsBak)[fIdx].exitPoints[pIdx] = (*nodesBak)[functions[fIdx].exitPoints[pIdx]->ID];
+        }
+    }
+}
+
+void restoreCFG(int nNodeBak, int nFuncBak, BBType ***nodesBak, funcType **functionsBak)
+{
+    freeCFG(nNode, nFunc, &nodes, &functions);
+
+    nNode = nNodeBak;
+    nFunc = nFuncBak;
+    nodes = *nodesBak;
+    functions = *functionsBak;
+    rootNode = nodes[0];
+
+    *nodesBak = NULL;
+    *functionsBak = NULL;
+}
 

@@ -26,8 +26,6 @@ int nPartition = 0;
 
 int nonLiteralExitPoint = -1;
 
-int bRepeat = 0;
-
 extern int SPMSIZE;
 
 void fs_readInstructions(FILE *fp)
@@ -231,10 +229,15 @@ int fs_findAddrRanges(BBListEntry* partitionNodeList, addrRangeType** addrRange)
     return nAddrRange;
 }
 
-int fs_createNewPartition(int size, int nPartition)
+int fs_createNewPartition(int size, long long int startAddr)
 {
-    if (bRepeat)
-        return functions[fToSplit].childrenIDs[nPartition-1];
+    int c;
+    for (c= 0; c < functions[fToSplit].nChildren; c++) {
+        int child = functions[fToSplit].childrenIDs[c];
+
+        if (functions[child].addrRange[0].startAddr == startAddr)
+            return child;
+    }
 
     funcType* newFunctions = (funcType*)realloc(functions, sizeof(funcType) * (nFunc+1));
     if (newFunctions == NULL) {
@@ -257,7 +260,7 @@ int fs_createNewPartition(int size, int nPartition)
     functions[newFuncIdx].nAddrRange = 0;
 
     functions[newFuncIdx].parent = fToSplit;
-    functions[newFuncIdx].size= size;
+    functions[newFuncIdx].size = size;
     functions[newFuncIdx].nChildren = 0;
     functions[newFuncIdx].childrenIDs = NULL;
     functions[newFuncIdx].nOccurrence = functions[newFuncIdx].nOccurrence;
@@ -559,7 +562,7 @@ void fs_cutPath(BBListEntry* partitionNodeList, int partitionID, int partitionSi
 
         // make a new partition for the new partition
         nPartition++;
-        newPartitionID = fs_createNewPartition(newPartitionSize, nPartition);
+        newPartitionID = fs_createNewPartition(newPartitionSize, newPartitionNodeList->BB->addr); 
         functions[newPartitionID].size = newPartitionSize;
         functions[newPartitionID].nAddrRange = fs_findAddrRanges(newPartitionNodeList, &(functions[newPartitionID].addrRange));
         printf("\tPartition %d is from node %d to node %d, and its size is %d\n", newPartitionID, getBBListHead(newPartitionNodeList)->ID, getBBListTail(newPartitionNodeList)->ID, newPartitionSize);
@@ -666,7 +669,7 @@ void fs_cutSESE(BBListEntry* partitionNodeList, int partitionID)
                 // new partition
                 nPartition++;
                 int partSize = fs_getPartitionSize(SESEregion);
-                int partID = fs_createNewPartition(partSize, nPartition);
+                int partID = fs_createNewPartition(partSize, SESEregion->BB->addr); 
 
                 functions[partID].nAddrRange = fs_findAddrRanges(SESEregion, &(functions[partID].addrRange));
 
@@ -890,7 +893,8 @@ int fs_makeCuts(int startIdx, int endIdx, int bStart)
         }
         else {
             nPartition++;
-            int partitionID = fs_createNewPartition(partitionSize, nPartition);
+            
+            int partitionID = fs_createNewPartition(partitionSize, partitionNodeList->BB->addr);
 
             functions[partitionID].nAddrRange = fs_findAddrRanges(partitionNodeList, &(functions[partitionID].addrRange));
 
@@ -943,8 +947,6 @@ int split(int f)
     dataSize = 0;
     codeSize = -1;
 
-    nPartition = 0;
-
     nonLiteralExitPoint = fs_getNonLiteralExitPoint(fToSplit);
 
     printf("----------------------------\n");
@@ -960,13 +962,11 @@ int split(int f)
 
     //fs_findData();
 
-    bRepeat = 0;
     int oIdx;
     for (oIdx = 0; oIdx < functions[fToSplit].nOccurrence; oIdx++) {
         printf("\t%d%s instance\n", oIdx, (oIdx == 1) ? "st" : (oIdx == 2) ? "nd" : (oIdx == 3) ? "rd" : "th");
-        fs_makeCuts(functions[fToSplit].entryPoints[oIdx]->ID, functions[fToSplit].exitPoints[oIdx]->ID, 1);    
         nPartition = 0;
-        bRepeat = 1;
+        fs_makeCuts(functions[fToSplit].entryPoints[oIdx]->ID, functions[fToSplit].exitPoints[oIdx]->ID, 1);    
     }
 
     printf("----------------------------\n");
@@ -978,9 +978,12 @@ int split(int f)
     fToSplit = -1;
     codeSize = -1;
     dataSize = 0;
-    nPartition = 0;
 
     nonLiteralExitPoint = -1;
+
+    if (nPartition == 0)
+        return -1;
+    nPartition = 0;
 
     return 0;
 }

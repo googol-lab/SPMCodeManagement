@@ -332,6 +332,7 @@ void moveLoopEdges(BBType* loopHead, BBType* loopTail)
     initVisitedForLoop(loopHead, loopTail);
 }
 
+#if 0
 void assignLoopIdx(BBType* from, BBType* to, int loopID)
 {
     BBType* node;
@@ -371,6 +372,7 @@ void assignLoopIdx(BBType* from, BBType* to, int loopID)
     FREESTACK
     initVisitedForLoop(from, to);
 }
+#endif
 
 void findLoops()
 {
@@ -465,6 +467,7 @@ void findLoops()
                 for (lIdx = 0; lIdx < nLoop; lIdx++) {
                     if (LB[lIdx].addr == loopHead->addr) {
                         lb = LB[lIdx].count;
+                        break;
                     }
                 }
 
@@ -503,29 +506,30 @@ void findLoops()
                 else
                     assignIterCounts(loopHead, loopTail, lb, 0);
 
-                assignLoopIdx(loopHead, loopTail, nLoop-1);
-
-                // remove backedge
-                BBType* succNode = succEntry->BB;
-                BBListEntry* tmp;
-                tmp = removeEdge(&(node->succList), succEntry->BB);
-                free(tmp);
-                tmp = removeEdge(&(succNode->predList), node);
+                //assignLoopIdx(loopHead, loopTail, nLoopVisited-1);
 
                 succEntry = succEntry->next;
+
+                // remove backedge
+                BBListEntry* tmp;
+                tmp = removeEdge(&(loopTail->succList), loopHead);
+                free(tmp);
+                tmp = removeEdge(&(loopHead->predList), loopTail);
                 free(tmp);
 
-                // find the loop(s) right before the loop
+                // find loop preheaders
                 BBListEntry* headPredEntry = loopHead->predList;
                 while (headPredEntry) {
                     if (headPredEntry->BB != loopTail && headPredEntry->BB->bUnreachable == 0) {
                         BBType* preLoop = headPredEntry->BB;
 
                         preLoop->bPreLoop = 1;
-                        addBBToList(loopTail, &(preLoop->loopTailList));
+                        preLoop->loopHead = loopHead;
+                        //addBBToList(loopTail, &(preLoop->loopTailList));
 
                         // add pre loops into prelooplist of the loopTail
                         addBBToList(preLoop, &(loopTail->preLoopList));
+                        addBBToList(preLoop, &(loopHead->preLoopList));
                     }
                     headPredEntry = headPredEntry->next;
                 }

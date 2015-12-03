@@ -5,6 +5,7 @@
 
 void initVisited()
 {
+#if 0
     BBType* node;
 
     INITSTACK(nNode)
@@ -23,30 +24,10 @@ void initVisited()
     }
     
     FREESTACK
-}
-
-void initVisitedInRange(BBType *from, BBType *to)
-{
-    BBType* node;
-
-    INITSTACK(nNode)
-
-    pushBB(from, &stack);
-    while ((node = popBB(&stack))) {
-        if (node->bVisited == 0)
-            continue;
-        node->bVisited = 0;
-        
-        if (node != to) {
-            BBListEntry* entry = node->succList;
-            while (entry) {
-                pushBB(entry->BB, &stack);
-                entry = entry->next;
-            }
-        }
-    }
-    
-    FREESTACK
+#endif
+    int n;
+    for (n = 0; n < nNode; n++)
+        nodes[n]->bVisited = 0;
 }
 
 void initUnreachable()
@@ -488,7 +469,8 @@ int* get_rList(int f, int* rList)
         }
     }
 
-    initVisitedInRange(entryNode, exitNode);
+    //initVisitedInRange(entryNode, exitNode);
+    initVisited();
 
     FREESTACK
 

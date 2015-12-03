@@ -25,10 +25,16 @@
 #include "CM_region_free.h"
 #include "split_wrapper.h"
 
+#include "CM_bblevel.h"
+
 int yyparse();
 
 extern int yydebug;
 extern FILE* yyin;
+
+enum sizeMode {NOCACHE, NOSPM, C1S3, C3S1, C1S1, DOUBLE} SIZEMODE;
+
+int NUM_BB_LOADED_PER_ITER;
 
 int SPMSIZE;
 
@@ -38,7 +44,7 @@ int dbgFlag = 0;
 int main(int argc, const char* argv[])
 {   
    // input args parsing
-    enum mode {CACHE, OPT_R, OPT_RF, FS, HEU, FIXED};
+    enum mode {CACHE, OPT_R, OPT_RF, FS, HEU, FIXED, BB};
     enum mode runmode;
 
 /*
@@ -79,6 +85,8 @@ int main(int argc, const char* argv[])
     }
     yyparse();
     
+    takeOutLiteralPools();
+
     initUnreachable();
 
     initIS();
@@ -133,6 +141,8 @@ int main(int argc, const char* argv[])
             runmode = CACHE;
         else if (strcmp(argv[3], "f") == 0)
             runmode = FIXED;
+        else if (strcmp(argv[3], "b") == 0)
+            runmode = BB;
         else
         {
             printf("not a valid option.\n");
@@ -152,7 +162,13 @@ int main(int argc, const char* argv[])
     switch (runmode)
     {
     case CACHE:
-        cache_analysis(CACHE_MISS_LATENCY);
+        if (argc > 4) {
+            if (strcmp(argv[4], "self") == 0) {
+                init_cache_analysis(SPMSIZE, 16, 4);
+                cache_analysis();
+            }
+        }
+        cache_wcet_analysis(CACHE_MISS_LATENCY);
         break;
     case OPT_R:
         cm_region_optimal(NULL);
@@ -167,10 +183,43 @@ int main(int argc, const char* argv[])
         if (runHeuristic(SPMSIZE) == -1)
             break;
     case FIXED:
-        wcet_analysis_fixed_input();
+        wcet_analysis_fixed_input(VERBOSE);
+        break;
+    case BB:
+        if (strcmp(argv[4], "nocache") == 0)
+            SIZEMODE = NOCACHE;
+        else if (strcmp(argv[4], "nospm") == 0)
+            SIZEMODE = NOSPM;
+        else if (strcmp(argv[4], "c3s1") == 0)
+            SIZEMODE = C3S1;
+        else if (strcmp(argv[4], "c1s3") == 0)
+            SIZEMODE = C1S3;
+        else if (strcmp(argv[4], "c1s1") == 0)
+            SIZEMODE = C1S1;
+        else if (strcmp(argv[4], "double") == 0)
+            SIZEMODE = DOUBLE;
+
+        if (argc > 5) {
+            if (strcmp(argv[5], "auto") == 0) {
+                NUM_BB_LOADED_PER_ITER = nNode*0.1;
+                printf("Load %d basic blocks (10%% of total %d basic blocks) per iteration\n", NUM_BB_LOADED_PER_ITER, nNode);
+            }
+            else
+                NUM_BB_LOADED_PER_ITER = atoi(argv[5]);
+        }
+        else {
+            NUM_BB_LOADED_PER_ITER = nNode*0.1;
+            printf("Load %d basic blocks (10%% of total %d basic blocks) per iteration\n", NUM_BB_LOADED_PER_ITER, nNode);
+        }
+
+        if (SPMSIZE%256 != 0)
+            printf("SPMSIZE should be a multiple of 256\n");
+
+        cm_bblevel();
         break;
     }
 
+    freeCFG(nNode, nFunc, &nodes, &functions);
     return 0;
 }
 

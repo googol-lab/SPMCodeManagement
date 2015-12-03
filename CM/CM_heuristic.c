@@ -465,6 +465,8 @@ int runHeuristic(int SPMSIZE)
     fclose(fp);
 
     free(tpoSortedNodes);
+    tpoSortedNodes = NULL;
+
     freeRegions(&R);
     free(funcMapMerge);
     free(funcMapPartition);

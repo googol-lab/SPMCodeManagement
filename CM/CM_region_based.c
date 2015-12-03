@@ -840,7 +840,7 @@ long long int cm_region_optimal(long long int* fCost)
     return (long long int)objVal;
 }
 
-long long int wcet_analysis_fixed_input()
+long long int wcet_analysis_fixed_input(enum solverOption svo)
 {
     BBType* node;
 
@@ -1108,7 +1108,10 @@ long long int wcet_analysis_fixed_input()
         fprintf(stderr, "Error: could not create environment\n");
         exit(1);
     }
-    GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 1);
+    if (svo == SILENT)
+        GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
+    else if (svo == VERBOSE)
+        GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 1);
 
     error = GRBreadmodel(env, "wcet_fixed.lp", &model);
     if (error)  quit(error, env);

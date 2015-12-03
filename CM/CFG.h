@@ -30,7 +30,7 @@ typedef struct _BBType
 
     int RT;
 
-    int L;
+    //int L; //obsolete
     int Vc;
     struct _BBType* callee;
     //int nT;

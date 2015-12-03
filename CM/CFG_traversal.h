@@ -4,7 +4,6 @@
 #include "CM.h"
 
 void initVisited();
-void initVisitedInRange(BBType *from, BBType *to);
 
 void initUnreachable();
 void initEC();

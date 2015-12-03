@@ -31,5 +31,11 @@ BBType* getFarthestLoopTail(BBType *node);
 int findTotalCodeSize();
 int findMaxFuncSize();
 
+void takeOutLiteralPools();
+
 void quit(int error, GRBenv *env);
+
+void backupCFG(int *nNodeBak, int *nFuncBak, BBType ***nodesBak, funcType **functionsBak);
+void freeCFG(int _nNode, int _nFunc, BBType ***_nodes, funcType **_functions);
+void restoreCFG(int nNodeBak, int nFuncBak, BBType ***nodesBak, funcType **functionsBak);
 #endif

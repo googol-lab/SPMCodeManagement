@@ -154,37 +154,31 @@ void newBB(char* name, unsigned int addr, int EC, int FS, int AH, int AM, int FM
     bb->bLiteralPool = 1;
 
     // keep the record of the smallest addr
-    if (addr < functions[EC].addrRange[0].startAddr) {
+    if (addr <= functions[EC].addrRange[0].startAddr) {
         functions[EC].addrRange[0].startAddr = addr;
 
         int nOcc = functions[EC].nOccurrence;
         BBType** new_entryPoints = (BBType**)realloc(functions[EC].entryPoints, sizeof(BBType*)*(nOcc+1));
+        BBType** new_exitPoints = (BBType**)realloc(functions[EC].exitPoints, sizeof(BBType*)*(nOcc+1));
         
-        if (new_entryPoints == NULL) {
+        if (new_entryPoints == NULL || new_exitPoints == NULL) {
             printf("mem alloc error @ newBB\n");
             exit(1);
         }
 
         functions[EC].entryPoints = new_entryPoints;
         functions[EC].entryPoints[nOcc] = bb;
+
+        functions[EC].exitPoints = new_exitPoints;
+
         functions[EC].nOccurrence++;
     }
 
-    if (addr+FS*4 > functions[EC].addrRange[0].startAddr + functions[EC].addrRange[0].size) {
+    if (addr+FS*4 > functions[EC].addrRange[0].startAddr + functions[EC].addrRange[0].size)
         functions[EC].addrRange[0].size += FS*4;
 
-        // No recursive.. so nOccurrence will increase for a pair of start and end addresses
-        int nOcc = functions[EC].nOccurrence;
-        BBType** new_exitPoints = (BBType**)realloc(functions[EC].exitPoints, sizeof(BBType*)*nOcc);
-
-        if (new_exitPoints == NULL) {
-            printf("mem alloc error @ newBB\n");
-            exit(1);
-        }
-
-        functions[EC].exitPoints = new_exitPoints;
-        functions[EC].exitPoints[nOcc-1] = bb;
-    }
+    if (addr+FS*4 == functions[EC].addrRange[0].startAddr + functions[EC].addrRange[0].size)
+        functions[EC].exitPoints[functions[EC].nOccurrence-1] = bb;
 
     bb->EC = EC;
     //if (EC > maxEC) 
@@ -208,7 +202,7 @@ void newBB(char* name, unsigned int addr, int EC, int FS, int AH, int AM, int FM
     bb->loopHead = NULL;
     bb->preLoopList = NULL;
 
-    bb->L = -1;
+    //bb->L = -1;
     bb->Vc = 0;
     //bb->nT = 0;
 #ifdef BBLEVEL_CM

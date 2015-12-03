@@ -16,246 +16,8 @@
 #include "CM_region_based.h"
 #include "CM_region_free.h"
 
+#include "util.h"
 #include "split_wrapper.h"
-
-void addNodeToList(BBType* node, BBListEntry** list)
-{
-    if (node == NULL) {
-        printf("@addNodeToList: node is NULL\n");
-        return;
-    }
-
-    if (*list == NULL) {
-        (*list) = (BBListEntry*)malloc(sizeof(BBListEntry));
-        (*list)->BB = node;
-        (*list)->next = NULL;
-    }
-    else {
-        BBListEntry* entry = *list;
-        while (entry->next) {
-            entry = entry->next;
-        }
-        entry->next = (BBListEntry*)malloc(sizeof(BBListEntry));
-        entry->next->BB = node;
-        entry->next->next = NULL;
-    }
-}
-
-void backupCFG(int *nNodeBak, int *nFuncBak, BBType ***nodesBak, funcType **functionsBak)
-{
-    int bIdx, fIdx, lIdx;
-
-    if (*nodesBak != NULL) {
-        for (bIdx = 0; bIdx < *nNodeBak; bIdx++) {
-            if ((*nodesBak)[bIdx]->name) {
-                free((*nodesBak)[bIdx]->name);
-                (*nodesBak)[bIdx]->name = NULL;
-            }
-
-            if ((*nodesBak)[bIdx]->preLoopList) {
-                free((*nodesBak)[bIdx]->preLoopList);
-                (*nodesBak)[bIdx]->preLoopList = NULL;
-            }
-
-            if ((*nodesBak)[bIdx]->loopTailList) {
-                free((*nodesBak)[bIdx]->loopTailList);
-                (*nodesBak)[bIdx]->loopTailList = NULL;
-            }
-
-            if ((*nodesBak)[bIdx]->predList) {
-                free((*nodesBak)[bIdx]->predList);
-                (*nodesBak)[bIdx]->predList = NULL;
-            }
-            if ((*nodesBak)[bIdx]->succList) {
-                free((*nodesBak)[bIdx]->succList);
-                (*nodesBak)[bIdx]->succList = NULL;
-            }
-
-            if ((*nodesBak)[bIdx]->IS) {
-                for (fIdx = 0; fIdx < *nFuncBak; fIdx++) {
-                    free((*nodesBak)[bIdx]->IS[fIdx]);
-                    (*nodesBak)[bIdx]->IS[fIdx] = NULL;
-                }
-                free((*nodesBak)[bIdx]->IS);
-                (*nodesBak)[bIdx]->IS = NULL;
-            }
-            free((*nodesBak)[bIdx]);
-            (*nodesBak)[bIdx] = NULL;
-        }
-        free(*nodesBak);
-        *nodesBak = NULL;
-    }
-
-    if (*functionsBak != NULL) {
-        for (fIdx = 0; fIdx < *nFuncBak; fIdx++) {
-            if ((*functionsBak)[fIdx].addrRange) {
-                free((*functionsBak)[fIdx].addrRange);
-                (*functionsBak)[fIdx].addrRange = NULL;
-            }
-
-            if ((*functionsBak)[fIdx].childrenIDs) {
-                free((*functionsBak)[fIdx].childrenIDs);
-                (*functionsBak)[fIdx].childrenIDs = NULL;
-            }
-
-            if ((*functionsBak)[fIdx].entryPoints) {
-                free((*functionsBak)[fIdx].entryPoints);
-                (*functionsBak)[fIdx].entryPoints = NULL;
-            }
-            if ((*functionsBak)[fIdx].exitPoints) {
-                free((*functionsBak)[fIdx].exitPoints);
-                (*functionsBak)[fIdx].exitPoints = NULL;
-            }
-        }
-        free(*functionsBak);
-        *functionsBak = NULL;
-    }
-
-    *nNodeBak = nNode;
-    *nodesBak = (BBType**)malloc(sizeof(BBType*) * *nNodeBak);
-    for (bIdx = 0; bIdx < *nNodeBak; bIdx++)
-        (*nodesBak)[bIdx] = (BBType*)malloc(sizeof(BBType));
-
-    for (bIdx = 0; bIdx < *nNodeBak; bIdx++) {
-        memcpy((*nodesBak)[bIdx], nodes[bIdx], sizeof(BBType));
-
-        if (nodes[bIdx]->callee)
-            (*nodesBak)[bIdx]->callee = (*nodesBak)[nodes[bIdx]->callee->ID];
-
-        (*nodesBak)[bIdx]->loopTailList = NULL;
-        if (nodes[bIdx]->loopTailList) {
-            BBListEntry *loopTailEntry = nodes[bIdx]->loopTailList;
-            while (loopTailEntry) {
-                addBBToList((*nodesBak)[loopTailEntry->BB->ID], &((*nodesBak)[bIdx]->loopTailList));
-                loopTailEntry = loopTailEntry->next;
-            }
-        }
-        if (nodes[bIdx]->loopHead)
-            (*nodesBak)[bIdx]->loopHead = (*nodesBak)[nodes[bIdx]->loopHead->ID];
-
-        (*nodesBak)[bIdx]->preLoopList = NULL;
-        BBListEntry* preLoopEntry = nodes[bIdx]->preLoopList;
-        while (preLoopEntry) {
-            addNodeToList((*nodesBak)[preLoopEntry->BB->ID], &((*nodesBak)[bIdx]->preLoopList));
-            preLoopEntry = preLoopEntry->next;
-        }
-
-        (*nodesBak)[bIdx]->predList = NULL;
-        BBListEntry* predEntry = nodes[bIdx]->predList;
-        while (predEntry) {
-            addNodeToList((*nodesBak)[predEntry->BB->ID], &((*nodesBak)[bIdx]->predList));
-            predEntry = predEntry->next;
-        }
-
-        (*nodesBak)[bIdx]->succList = NULL;
-        BBListEntry* succEntry = nodes[bIdx]->succList;
-        while (succEntry) {
-            addNodeToList((*nodesBak)[succEntry->BB->ID], &((*nodesBak)[bIdx]->succList));
-            succEntry = succEntry->next;
-        }
-
-        if (nodes[bIdx]->IS != NULL) {
-            (*nodesBak)[bIdx]->IS = (int**)malloc(sizeof(int*) * nFunc);
-            for (fIdx = 0; fIdx < nFunc; fIdx++) {
-                (*nodesBak)[bIdx]->IS[fIdx] = (int*)malloc(sizeof(int) * nFunc);
-                for (lIdx = 0; lIdx < nFunc; lIdx++) {
-                    (*nodesBak)[bIdx]->IS[fIdx][lIdx] = nodes[bIdx]->IS[fIdx][lIdx];
-                }
-            }
-        }
-        else
-            (*nodesBak)[bIdx]->IS = NULL;
-    }
-
-    *nFuncBak = nFunc;
-    *functionsBak = (funcType*)malloc(sizeof(funcType) * nFunc);
-    for (fIdx = 0; fIdx < nFunc; fIdx++) {
-        memcpy(&((*functionsBak)[fIdx]), &(functions[fIdx]), sizeof(funcType));
-
-        if (functions[fIdx].nAddrRange > 0) {
-            (*functionsBak)[fIdx].addrRange = (addrRangeType*)malloc(sizeof(addrRangeType) * functions[fIdx].nAddrRange);
-            int rIdx;
-            for (rIdx = 0; rIdx < functions[fIdx].nAddrRange; rIdx++) {
-                (*functionsBak)[fIdx].addrRange[rIdx].startAddr = functions[fIdx].addrRange[rIdx].startAddr;
-                (*functionsBak)[fIdx].addrRange[rIdx].size = functions[fIdx].addrRange[rIdx].size;
-            }
-        }
-
-        if (functions[fIdx].nChildren > 0) {
-            (*functionsBak)[fIdx].childrenIDs = (int*)malloc(sizeof(int) * functions[fIdx].nChildren);
-            int cIdx;
-            for (cIdx = 0; cIdx < functions[fIdx].nChildren; cIdx++) {
-                (*functionsBak)[fIdx].childrenIDs[cIdx] = functions[fIdx].childrenIDs[cIdx];
-            }
-        }
-
-        if (functions[fIdx].entryPoints) {
-            (*functionsBak)[fIdx].entryPoints = (BBType**)malloc(sizeof(BBType*) * functions[fIdx].nOccurrence);
-            int pIdx;
-            for (pIdx = 0; pIdx < functions[fIdx].nOccurrence; pIdx++)
-                (*functionsBak)[fIdx].entryPoints[pIdx] = (*nodesBak)[functions[fIdx].entryPoints[pIdx]->ID]; 
-        }
-        if (functions[fIdx].exitPoints) {
-            (*functionsBak)[fIdx].exitPoints = (BBType**)malloc(sizeof(BBType*) * functions[fIdx].nOccurrence);
-            int pIdx;
-            for (pIdx = 0; pIdx < functions[fIdx].nOccurrence; pIdx++)
-                (*functionsBak)[fIdx].exitPoints[pIdx] = (*nodesBak)[functions[fIdx].exitPoints[pIdx]->ID];
-        }
-    }
-}
-
-void restoreCFG(int nNodeBak, int nFuncBak, BBType ***nodesBak, funcType **functionsBak)
-{
-    int bIdx, fIdx;
-    for (bIdx = 0; bIdx < nNode; bIdx++) {
-        if (nodes[bIdx]->name)
-            free(nodes[bIdx]->name);
-
-        if (nodes[bIdx]->preLoopList)
-            free(nodes[bIdx]->preLoopList);
-
-        if (nodes[bIdx]->loopTailList)
-            free(nodes[bIdx]->loopTailList);
-
-        if (nodes[bIdx]->predList)
-            free(nodes[bIdx]->predList);
-        if (nodes[bIdx]->succList)
-            free(nodes[bIdx]->succList);
-
-        if (nodes[bIdx]->IS) {
-            for (fIdx = 0; fIdx < nFunc; fIdx++) {
-                free(nodes[bIdx]->IS[fIdx]);
-            }
-            free(nodes[bIdx]->IS);
-        }
-        free(nodes[bIdx]);
-    }
-    free(nodes);
-
-
-    for (fIdx = 0; fIdx < nFunc; fIdx++) {
-        if (functions[fIdx].nAddrRange)
-            free(functions[fIdx].addrRange);
-
-        if (functions[fIdx].childrenIDs)
-            free(functions[fIdx].childrenIDs);
-
-        if (functions[fIdx].entryPoints)
-            free(functions[fIdx].entryPoints);
-        if (functions[fIdx].exitPoints)
-            free(functions[fIdx].exitPoints);
-    }
-    free(functions);
-
-    nNode = nNodeBak;
-    nFunc = nFuncBak;
-    nodes = *nodesBak;
-    functions = *functionsBak;
-    rootNode = nodes[0];
-
-    *nodesBak = NULL;
-    *functionsBak = NULL;
-}
 
 void cm_fs()
 {
@@ -289,24 +51,68 @@ void cm_fs()
         sortedFIdx[i] = maxIdx;
     }
 
-    // does the largest function fit in the SPM?
-    long long int prevWCET = LLONG_MAX;
-    if (functions[sortedFIdx[0]].size <= SPMSIZE) {
-        // run the heuristic first to get the initial WCET before function splitting
-        if(runHeuristic(SPMSIZE) != -1)
-            prevWCET = wcet_analysis_fixed_input();
-    }
-
     int nNodeBak_prev;
     int nFuncBak_prev;
     BBType** nodesBak_prev = NULL;
     funcType* functionsBak_prev = NULL;
 
+    backupCFG(&nNodeBak_prev, &nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
+
+    int startIdx;
     int origNFunc = nFunc; // since nFunc may increase in the following loop
-    for (i = 0; i < origNFunc; i++) {
+
+    // does the largest function fit in the SPM?
+    long long int prevWCET = LLONG_MAX;
+    long long int newWCET;
+    if (functions[sortedFIdx[0]].size <= SPMSIZE) {
+        // run the heuristic first to get the initial WCET before function splitting
+        if(runHeuristic(SPMSIZE) != -1)
+            prevWCET = wcet_analysis_fixed_input(SILENT);
+
+        startIdx = 0;
+    }
+    else {
+        backupCFG(&nNodeBak_prev, &nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
+        // if not, split all functions that are larger than the SPM size
+        for (i = 0; i < origNFunc; i++) {
+            if (functions[sortedFIdx[i]].size <= SPMSIZE)
+                break;
+
+            if (split(sortedFIdx[i]) == -1) {
+                printf("splitting function %d failed\n", i);
+                goto FS_EXIT;
+            }
+        }
+        
+        initIS();
+        findIS();
+        findInitialLoadingPoints();
+
+        if (runHeuristic(SPMSIZE) == -1) {
+            printf("Cannot proceed due to the SPMSIZE restriction\n");
+            exit(1);
+        }
+
+        newWCET = wcet_analysis_fixed_input(SILENT);
+        if (newWCET > prevWCET) {
+            printf("WCET did not decrease. Try a larger SPM size\n");
+            exit(1);
+        }
+        else
+            prevWCET = newWCET;
+
         backupCFG(&nNodeBak_prev, &nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
 
-        split(sortedFIdx[i]);
+        startIdx = i;
+    }
+
+    for (i = startIdx; i < origNFunc; i++) {
+        backupCFG(&nNodeBak_prev, &nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
+
+        if (split(sortedFIdx[i]) == -1) {
+            printf("splitting function %d failed\n", i);
+            continue;
+        }
 
         initIS();
         findIS();
@@ -317,7 +123,7 @@ void cm_fs()
             exit(1);
         }
 
-        long long int newWCET = wcet_analysis_fixed_input();
+        long long int newWCET = wcet_analysis_fixed_input(SILENT);
         if (newWCET > prevWCET) {
             printf("---------------------------\nroll back!\n---------------------------\n");
             restoreCFG(nNodeBak_prev, nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
@@ -329,15 +135,18 @@ void cm_fs()
     initIS();
     findIS();
     findInitialLoadingPoints();
-
     
     if (runHeuristic(SPMSIZE) != -1)
-        wcet_analysis_fixed_input();
+        wcet_analysis_fixed_input(VERBOSE);
     printf("\n\n-----Heuristic done---------------------------------------\n\n");
     //cm_region_optimal(NULL);
     //printf("\n\n-----Region-based done------------------------------------\n\n");
     //cm_rf_optimal(NULL);
     //printf("\n\n-----Region-free done-------------------------------------\n\n");
+
+FS_EXIT:
+    free(sortedFIdx);
+    freeCFG(nNodeBak_prev, nFuncBak_prev, &nodesBak_prev, &functionsBak_prev);
 }
 
 #if 0
