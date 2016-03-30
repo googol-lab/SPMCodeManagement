@@ -220,7 +220,8 @@ int getWCET(int* funcMap)
     for (i = 0; i < nNode; i++)
         dist[i] = 0;
 
-    dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+    //dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+    dist[rootNode->ID] = rootNode->N * rootNode->S;
 
     int distMax = 0;
     BBType* distMaxNode = NULL;
@@ -266,25 +267,31 @@ int getWCET(int* funcMap)
                 int bRT = isNodeRT(node);
                 if (bInterfere == 1) {
                     if (bRT == 1)
-                        dist[node->ID] += Ncall * (Cdma(node->EC)+4);
+                        dist[node->ID] += Ncall * (Cdma(node->EC)+NUM_INSTS_AM_RETURN);
                     else
-                        dist[node->ID] += Ncall * (Cdma(node->EC)+5);
+                        dist[node->ID] += Ncall * (Cdma(node->EC)+NUM_INSTS_AM_CALL);
                 }
                 else
                 {
                     if (node->bFirst) {
                         if (Ncall > 1) {
                             if (bRT == 1)
-                                dist[node->ID] += Cdma(node->EC) + (Ncall-1)*4+11;
+                                dist[node->ID] += Cdma(node->EC) + (Ncall-1)*NUM_INSTS_AH_RETURN+NUM_INSTS_AM_RETURN;
                             else
-                                dist[node->ID] += Cdma(node->EC) + (Ncall-1)*4+12;
+                                dist[node->ID] += Cdma(node->EC) + (Ncall-1)*NUM_INSTS_AH_CALL+NUM_INSTS_AM_CALL;
                         }
                         else {
                             if (bRT == 1)
-                                dist[node->ID] += Ncall*(Cdma(node->EC)+4);
+                                dist[node->ID] += Ncall*(Cdma(node->EC)+NUM_INSTS_AM_RETURN);
                             else
-                                dist[node->ID] += Ncall*(Cdma(node->EC)+5);
+                                dist[node->ID] += Ncall*(Cdma(node->EC)+NUM_INSTS_AM_CALL);
                         }
+                    }
+                    else {
+                        if (bRT == 1)
+                            dist[node->ID] += Ncall * NUM_INSTS_AH_RETURN;
+                        else
+                            dist[node->ID] += Ncall * NUM_INSTS_AH_CALL;
                     }
                 }
             }

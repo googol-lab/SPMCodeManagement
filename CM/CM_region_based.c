@@ -146,14 +146,16 @@ long long int cm_region_optimal(long long int* fCost)
             /////////////////////////////////////
             int N = getNCall(node);
             if (N > 0) {
-                int AM, FM;
+                int AH, AM, FM;
                 if (isNodeRT(node) == 1) {
-                    AM = N*(Cdma(node->EC) + 4);
-                    FM = Cdma(node->EC) + 4*(N-1) + 11;
+                    AH = N*NUM_INSTS_AH_RETURN;
+                    AM = N*(Cdma(node->EC) + NUM_INSTS_AM_RETURN);
+                    FM = Cdma(node->EC) + NUM_INSTS_AH_RETURN*(N-1) + NUM_INSTS_AM_RETURN;
                 }
                 else {
-                    AM = N*(Cdma(node->EC) + 5);
-                    FM = Cdma(node->EC) + 4*(N-1) + 12;
+                    AH = N*NUM_INSTS_AH_CALL;
+                    AM = N*(Cdma(node->EC) + NUM_INSTS_AM_CALL);
+                    FM = Cdma(node->EC) + NUM_INSTS_AH_CALL*(N-1) + NUM_INSTS_AM_CALL;
                 }
 
                 // Instead of node->N, we should use getNCall(node)
@@ -166,15 +168,20 @@ long long int cm_region_optimal(long long int* fCost)
                     // FMO (FirstMiss MO) is 14 for return and 8 for call
                     if (N > 1) {
                         // if BAM == 0 then L = FM else AM
-                        //  L >= AM*BAM + FM*(1-BAM) ==> L + (FM-AM)*BAM >= FM
+                        //  L = AM*BAM + FM*(1-BAM) ==> L + (FM-AM)*BAM >= FM
                         fprintf(fp, "L%d + %d BAMC%d = %d\n", node->ID, FM - AM, node->ID, FM);
                     } else {
-                        fprintf(fp, "L%d = %d\n", node->ID, AM);
+                        fprintf(fp, "L%d = %d\n", node->ID, AM); // loading only once
                     }
                 } else {
-                    // if BAM == 0 then L = 0 else L = AM
+                    // if BAM == 0 then L = 0 else L = AM ---------- disabled mar/16
                     //     L >= AM*BAM
-                    fprintf(fp, "L%d - %d BAMC%d = 0\n", node->ID, AM, node->ID);
+                    //fprintf(fp, "L%d - %d BAMC%d = 0\n", node->ID, AM, node->ID);
+
+                    // if BAM == 0 then L = AH else L = AM
+                    //     L = AM*BAM + AH*(1-BAM)
+                    //     L = (AM-AH)*BAM + AH
+                    fprintf(fp, "L%d - %d BAMC%d = %d\n", node->ID, AM-AH, node->ID, AH);
                 }
             }
             else
@@ -183,8 +190,9 @@ long long int cm_region_optimal(long long int* fCost)
         }
         else if (node == rootNode) {
 #ifndef LVZERO
-            int Lmain = Cdma(node->EC);
-            fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            //int Lmain = Cdma(node->EC);
+            //fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            fprintf(fp, "L%d = 0\n", node->ID);
 #else
             fprintf(fp, "L%d = 0\n", node->ID);
 #endif
@@ -397,7 +405,7 @@ long long int cm_region_optimal(long long int* fCost)
     GRBsetintparam(env, GRB_INT_PAR_NUMERICFOCUS, 1);
     GRBsetdblparam(env, GRB_DBL_PAR_IMPROVESTARTTIME, 300);
 */
-    GRBsetdblparam(env, GRB_DBL_PAR_TIMELIMIT, 600);
+    //GRBsetdblparam(env, GRB_DBL_PAR_TIMELIMIT, 600);
 
     error = GRBreadmodel(env, "codemapping.lp", &model);
     if (error)  quit(error, env);
@@ -545,7 +553,10 @@ long long int cm_region_optimal(long long int* fCost)
         int maxDist = 0;
         BBType* maxDistNode;
 #ifndef LVZERO
-        dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+        //dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
+#else 
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
 #endif
 
         int i;
@@ -581,24 +592,30 @@ long long int cm_region_optimal(long long int* fCost)
                 }
                 if (bAM == 1 && nCall > 0) {
                     if (isNodeRT(node) == 1)
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                     else
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                 }
                 else {
                     if (node->bFirst) {
                         if (nCall == 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                             else
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                         }
                         else if (nCall > 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 14;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
                             else
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 8;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
                         }
+                    }
+                    else { // AH
+                        if (isNodeRT(node) == 1)
+                            dist[node->ID] += nCall * NUM_INSTS_AH_RETURN;
+                        else
+                            dist[node->ID] += nCall * NUM_INSTS_AH_CALL;
                     }
                 }
             }
@@ -612,17 +629,18 @@ long long int cm_region_optimal(long long int* fCost)
         initVisited();
 
         int nSPMAM = 0, nSPMFM = 0;
-        int totalSPMCost = 0;
+        long long int totalSPMCost = 0;
         
         if (fCost != NULL)
 #ifndef LVZERO
-            fCost[rootNode->EC] = Cdma(rootNode->EC);
+            //fCost[rootNode->EC] = Cdma(rootNode->EC);
+            fCost[rootNode->EC] = 0;
 #else
             fCost[rootNode->EC] = 0;
 #endif
 
-        int totalMGMTCost = 0;
-        int WCETwithoutSPM = 0;
+        long long int totalMGMTCost = 0;
+        long long int WCETwithoutSPM = 0;
         
 
         float* fCostExFM = (float*)malloc(sizeof(float) * nFunc);
@@ -706,11 +724,11 @@ long long int cm_region_optimal(long long int* fCost)
                     nSPMAM++;
                     if (isNodeRT(node) == 1) {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 4;
+                        MC = nCall * NUM_INSTS_AM_RETURN;
                     }
                     else {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 5;
+                        MC = nCall * NUM_INSTS_AM_CALL;
                     }
 
                     int max = 0;
@@ -731,35 +749,44 @@ long long int cm_region_optimal(long long int* fCost)
                             nSPMAM++;
                             if (isNodeRT(node) == 1) {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 4;
+                                MC = nCall * NUM_INSTS_AM_RETURN;
                             }
                             else {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 5;
+                                MC = nCall * NUM_INSTS_AM_CALL;
                             }
                         }
                         else if (nCall > 1) {
                             nSPMFM++;
                             if (isNodeRT(node) == 1) {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 11;
+                                MC = (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
                             }
                             else {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 12;
+                                MC = (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
                             }
                         }
+                    }
+                    else { // AH
+                        WC = 0;
+                        if (isNodeRT(node) == 1)
+                            MC = nCall * NUM_INSTS_AH_RETURN;
+                        else
+                            MC = nCall * NUM_INSTS_AH_CALL;
                     }
                 }
             }
             else if (node == rootNode) {
-                WC = Cdma(rootNode->EC);
+                //WC = Cdma(rootNode->EC);
+                MC = WC = 0;
             }
 #endif
             if (dbgFlag) {
                 if (WC > 0 || MC > 0)
                     printf("   WC: %d, MC: %d\n", WC, MC);
             }
+             
             totalSPMCost += WC;
             totalMGMTCost += MC;
 
@@ -803,16 +830,16 @@ long long int cm_region_optimal(long long int* fCost)
 
             printf("\n\n");
             printf("maxSkewCost: %f\n", maxSkewCost);
-            printf("avgSkewCost: %f\n", avgSkewCost);
-            printf("stdDev: %f\n\n", stdDev);
+            //printf("avgSkewCost: %f\n", avgSkewCost);
+            //printf("stdDev: %f\n\n", stdDev);
         }
         free(RS);
         free(fCostExFM);
  
         if ((long long int)objVal != WCETwithoutSPM+totalSPMCost+totalMGMTCost) {
-            printf("Costs do not match. %lld vs %d\n", (long long int)objVal, WCETwithoutSPM+totalSPMCost+totalMGMTCost);
+            printf("Costs do not match. %lld vs %lld\n", (long long int)objVal, WCETwithoutSPM+totalSPMCost+totalMGMTCost);
         }
-        printf("WCET: %lld (C: %lld (%.2f%%), W: %lld (%.2f%%), M: %lld (%.2f%%))\n", (long long int)objVal, (long long int)WCETwithoutSPM, WCETwithoutSPM/objVal*100, (long long int)totalSPMCost, totalSPMCost/objVal*100, (long long int)totalMGMTCost, totalMGMTCost/objVal*100);
+        printf("WCET: %lld (C: %lld (%.2f%%), W: %lld (%.2f%%), M: %lld (%.2f%%))\n", (long long int)objVal, WCETwithoutSPM, WCETwithoutSPM/objVal*100, totalSPMCost, totalSPMCost/objVal*100, totalMGMTCost, totalMGMTCost/objVal*100);
         free(tpoSortedNodes);
         free(dist);
     }
@@ -1008,22 +1035,26 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
 
                 if (isNodeRT(node) == 1) {
                     if (bAM == 1 || (node->bFirst == 1 && N == 1)) {
-                        L = N*(Cdma(node->EC) + 4);
+                        L = N*(Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                     }
                     else {
                         if (node->bFirst) {
-                            L = Cdma(node->EC) + 4*(N-1) + 11;
+                            L = Cdma(node->EC) + NUM_INSTS_AH_RETURN*(N-1) + NUM_INSTS_AM_RETURN;
                         }
+                        else // AH
+                            L = N * NUM_INSTS_AH_RETURN;
                     }
                 }
                 else {
                     if (bAM == 1 || (node->bFirst == 1 && N == 1)) {
-                        L = N*(Cdma(node->EC) + 5);
+                        L = N*(Cdma(node->EC) + NUM_INSTS_AM_CALL);
                     }
                     else {
                         if (node->bFirst) {
-                            L = Cdma(node->EC) + 4*(N-1) + 12;
+                            L = Cdma(node->EC) + NUM_INSTS_AH_CALL*(N-1) + NUM_INSTS_AM_CALL;
                         }
+                        else // AH
+                            L = N * NUM_INSTS_AH_CALL;
                     }
                 }
                 fprintf(fp, "L%d = %d\n", node->ID, L);
@@ -1034,8 +1065,9 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
         }
         else if (node == rootNode) {
 #ifndef LVZERO
-            int Lmain = Cdma(node->EC);
-            fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            //int Lmain = Cdma(node->EC);
+            //fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            fprintf(fp, "L%d = 0\n", node->ID);
 #else
             fprintf(fp, "L%d = 0\n", node->ID);
 #endif
@@ -1150,7 +1182,10 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
         int maxDist = 0;
         BBType* maxDistNode;
 #ifndef LVZERO
-        dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+        //dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
+#else
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
 #endif
 
         int i;
@@ -1186,24 +1221,30 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
                 }
                 if (bAM == 1 && nCall > 0) {
                     if (isNodeRT(node) == 1)
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                     else
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                 }
                 else {
                     if (node->bFirst) {
                         if (nCall == 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                             else
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                         }
                         else if (nCall > 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 14;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
                             else
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 8;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
                         }
+                    }
+                    else { // AH
+                        if (isNodeRT(node) == 1)
+                            dist[node->ID] += nCall * NUM_INSTS_AH_RETURN;
+                        else
+                            dist[node->ID] += nCall * NUM_INSTS_AH_CALL;
                     }
                 }
             }
@@ -1217,10 +1258,11 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
         initVisited();
 
         int nSPMAM = 0, nSPMFM = 0;
-        int totalSPMCost = 0;
+        long long int totalSPMCost = 0;
         
-        int totalMGMTCost = 0;
-        int WCETwithoutSPM = 0;
+        long long int totalMGMTCost = 0;
+        long long int totalOverhead = 0;
+        long long int WCETwithoutSPM = 0;
 
 
         float* fCostExFM = (float*)malloc(sizeof(float) * nFunc);
@@ -1229,7 +1271,7 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
 
         int CostExFM = 0;
         
-        int CC, WC, MC; // computation cost, waiting cost, management cost
+        int CC, WC, MC, OV; // computation cost, waiting cost, management cost, overhead (management cost - unavoidable dma instruction cost(SIMPLE DMA COST))
         pushBB(maxDistNode, &stack);
         while ((node = popBB(&stack))) {
             if (node->bVisited == 1)
@@ -1273,6 +1315,7 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
 
             WC = 0;
             MC = 0;
+            OV = 0;
 #ifndef LVZERO
             if (node->CS==1 && node->N>0) {
                 nCall = getNCall(node);
@@ -1299,11 +1342,13 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
                     nSPMAM++;
                     if (isNodeRT(node) == 1) {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 4;
+                        MC = nCall * NUM_INSTS_AM_RETURN;
+                        OV = nCall * (NUM_INSTS_AM_RETURN - NUM_INSTS_FOR_SIMPLE_DMA);
                     }
                     else {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 5;
+                        MC = nCall * NUM_INSTS_AM_CALL;
+                        OV = nCall * (NUM_INSTS_AM_CALL - NUM_INSTS_FOR_SIMPLE_DMA);
                     }
 
                     int max = 0;
@@ -1324,29 +1369,41 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
                             nSPMAM++;
                             if (isNodeRT(node) == 1) {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 4;
+                                MC = nCall * NUM_INSTS_AM_RETURN;
+                                OV = nCall * (NUM_INSTS_AM_RETURN - NUM_INSTS_FOR_SIMPLE_DMA);
                             }
                             else {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 5;
+                                MC = nCall * NUM_INSTS_AM_CALL;
+                                OV = nCall * (NUM_INSTS_AM_CALL - NUM_INSTS_FOR_SIMPLE_DMA);
                             }
                         }
                         else if (nCall > 1) {
                             nSPMFM++;
                             if (isNodeRT(node) == 1) {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 11;
+                                MC = (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
+                                OV = (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN - NUM_INSTS_FOR_SIMPLE_DMA;
                             }
                             else {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 12;
+                                MC = (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
+                                OV = (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL - NUM_INSTS_FOR_SIMPLE_DMA;
                             }
                         }
+                    }
+                    else { // AH
+                        WC = 0;
+                        if (isNodeRT(node) == 1) 
+                            OV = MC = nCall * NUM_INSTS_AH_RETURN;
+                        else
+                            OV = MC = nCall * NUM_INSTS_AH_CALL;
                     }
                 }
             }
             else if (node == rootNode) {
-                WC = Cdma(rootNode->EC);
+                //WC = Cdma(rootNode->EC);
+                WC = 0;
             }
 #endif
             if (dbgFlag) {
@@ -1355,6 +1412,7 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
             }
             totalSPMCost += WC;
             totalMGMTCost += MC;
+            totalOverhead += OV;    // checking overhead 
 
             if ((long long int)(lNode+0.5) != (WC+MC)) {
                 printf("Loading cost doesn't match at node %d %s %d from %d, %d times. Estimated : %d vs. Calculated: %lld\n", node->ID, (isNodeRT(node) == 1) ? "returning to":"calling", node->EC, node->predList->BB->EC, nCall, (WC+MC), (long long int)(lNode+0.5));
@@ -1363,7 +1421,7 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
  
             pushBB(maxDistPredNode, &stack);
         }
-
+/*
         float avgSkewCost = 0;
         int nCaseAdded = 0;
         float maxSkewCost = 0;
@@ -1396,16 +1454,17 @@ long long int wcet_analysis_fixed_input(enum solverOption svo)
 
             printf("\n\n");
             printf("maxSkewCost: %f\n", maxSkewCost);
-            printf("avgSkewCost: %f\n", avgSkewCost);
-            printf("stdDev: %f\n\n", stdDev);
+            //printf("avgSkewCost: %f\n", avgSkewCost);
+            //printf("stdDev: %f\n\n", stdDev);
         }
+*/
         free(RS);
         free(fCostExFM);
 
         if ((long long int)objVal != WCETwithoutSPM+totalSPMCost+totalMGMTCost) {
-            printf("Costs do not match. %lld vs %d\n", (long long int)objVal, WCETwithoutSPM+totalSPMCost+totalMGMTCost);
+            printf("Costs do not match. %lld vs %lld\n", (long long int)objVal, WCETwithoutSPM+totalSPMCost+totalMGMTCost);
         }
-        printf("WCET: %lld (C: %lld (%.2f%%), W: %lld (%.2f%%), M: %lld (%.2f%%))\n", (long long int)objVal, (long long int)WCETwithoutSPM, WCETwithoutSPM/objVal*100, (long long int)totalSPMCost, totalSPMCost/objVal*100, (long long int)totalMGMTCost, totalMGMTCost/objVal*100);
+        printf("WCET: %lld (C: %lld (%.2f%%), W: %lld (%.2f%%), M: %lld (%.2f%%) (O: %lld (%.2f%%))\n", (long long int)objVal, WCETwithoutSPM, WCETwithoutSPM/objVal*100, totalSPMCost, totalSPMCost/objVal*100, totalMGMTCost, totalMGMTCost/objVal*100, totalOverhead, totalOverhead/objVal*100);
         free(tpoSortedNodes);
         free(dist);
     }

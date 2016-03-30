@@ -158,14 +158,16 @@ long long int cm_rf_optimal(long long int* fCost)
             /////////////////////////////////////
             int N = getNCall(node);
             if (N > 0) {
-                int AM, FM;
+                int AH, AM, FM;
                 if (isNodeRT(node) == 1) {
-                    AM = N*(Cdma(node->EC) + 4);
-                    FM = Cdma(node->EC) + 4*(N-1) + 11;
+                    AH = N*NUM_INSTS_AH_RETURN;
+                    AM = N*(Cdma(node->EC) + NUM_INSTS_AM_RETURN);
+                    FM = Cdma(node->EC) + NUM_INSTS_AH_RETURN*(N-1) + NUM_INSTS_AM_RETURN;
                 }
                 else {
-                    AM = N*(Cdma(node->EC) + 5);
-                    FM = Cdma(node->EC) + 4*(N-1) + 12;
+                    AH = N*NUM_INSTS_AH_CALL;
+                    AM = N*(Cdma(node->EC) + NUM_INSTS_AM_CALL);
+                    FM = Cdma(node->EC) + NUM_INSTS_AH_CALL*(N-1) + NUM_INSTS_AM_CALL;
                 }
 
                 // Instead of node->N, we should use getNCall(node)
@@ -186,10 +188,14 @@ long long int cm_rf_optimal(long long int* fCost)
                         //fprintf(fp, "LC%d = %d\n", node->ID, AM);
                     }
                 } else {
-                    // if BAM == 0 then L = 0 else L = AM
+                    // if BAM == 0 then L = 0 else L = AM --- disabled mar16
                     //     L >= AM*BAM
-                    fprintf(fp, "L%d - %d BAMC%d = 0\n", node->ID, AM, node->ID);
-                    //fprintf(fp, "LC%d - %d BAMC%d = 0\n", node->ID, AM, node->ID);
+                    //fprintf(fp, "L%d - %d BAMC%d = 0\n", node->ID, AM, node->ID);
+
+                    // if BAM == 0 then L = AH else L = AM
+                    //     L >= AM*BAM + AH*(1-BAM)
+                    //     L >= (AM-AH)*BAM + AH
+                    fprintf(fp, "L%d - %d BAMC%d = %d\n", node->ID, AM-AH, node->ID, AH);
                 }
             }
             else
@@ -198,8 +204,9 @@ long long int cm_rf_optimal(long long int* fCost)
         }
         else if (node == rootNode) {
 #ifndef LVZERO
-            int Lmain = Cdma(node->EC);
-            fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            //int Lmain = Cdma(node->EC);
+            //fprintf(fp, "L%d = %d\n", node->ID, Lmain);
+            fprintf(fp, "L%d = 0\n", node->ID);
 #else
             fprintf(fp, "L%d = 0\n", node->ID);
 #endif
@@ -480,7 +487,12 @@ long long int cm_rf_optimal(long long int* fCost)
 
         int maxDist = 0;
         BBType* maxDistNode;
-        dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+#ifndef LVZERO
+        //dist[rootNode->ID] = rootNode->N * rootNode->S + Cdma(rootNode->EC);
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
+#else
+        dist[rootNode->ID] = rootNode->N * rootNode->S;
+#endif
 
         int i;
         for (i = tpoStartIdx-2; i >= 0; i--) {
@@ -521,24 +533,30 @@ long long int cm_rf_optimal(long long int* fCost)
                 }
                 if (bAM == 1 && nCall > 0) {
                     if (isNodeRT(node) == 1)
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                     else
-                        dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                        dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                 }
                 else {
                     if (node->bFirst) {
                         if (nCall == 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 10);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_RETURN);
                             else
-                                dist[node->ID] += nCall * (Cdma(node->EC) + 4);
+                                dist[node->ID] += nCall * (Cdma(node->EC) + NUM_INSTS_AM_CALL);
                         }
                         else if (nCall > 1) {
                             if (isNodeRT(node) == 1)
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 14;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
                             else
-                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * 2 + 8;
+                                dist[node->ID] += Cdma(node->EC) + (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
                         }
+                    }
+                    else { // AH
+                        if (isNodeRT(node) == 1)
+                            dist[node->ID] += nCall * NUM_INSTS_AH_RETURN;
+                        else
+                            dist[node->ID] += nCall * NUM_INSTS_AH_CALL;
                     }
                 }
             }
@@ -556,7 +574,8 @@ long long int cm_rf_optimal(long long int* fCost)
         
         if (fCost != NULL)
 #ifndef LVZERO
-            fCost[rootNode->EC] = Cdma(rootNode->EC);
+            //fCost[rootNode->EC] = Cdma(rootNode->EC);
+            fCost[rootNode->EC] = 0;
 #else
             fCost[rootNode->EC] = 0;
 #endif
@@ -654,11 +673,11 @@ long long int cm_rf_optimal(long long int* fCost)
                     nSPMAM++;
                     if (isNodeRT(node) == 1) {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 4;
+                        MC = nCall * NUM_INSTS_AM_RETURN;
                     }
                     else {
                         WC = nCall * Cdma(node->EC);
-                        MC = nCall * 5;
+                        MC = nCall * NUM_INSTS_AM_CALL;
                     }
                 }
                 else {
@@ -667,29 +686,37 @@ long long int cm_rf_optimal(long long int* fCost)
                             nSPMAM++;
                             if (isNodeRT(node) == 1) {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 4;
+                                MC = nCall * NUM_INSTS_AM_RETURN;
                             }
                             else {
                                 WC = nCall * Cdma(node->EC);
-                                MC = nCall * 5;
+                                MC = nCall * NUM_INSTS_AM_CALL;
                             }
                         }
                         else if (nCall > 1) {
                             nSPMFM++;
                             if (isNodeRT(node) == 1) {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 11;
+                                MC = (nCall-1) * NUM_INSTS_AH_RETURN + NUM_INSTS_AM_RETURN;
                             }
                             else {
                                 WC = Cdma(node->EC);
-                                MC = (nCall-1) * 4 + 12;
+                                MC = (nCall-1) * NUM_INSTS_AH_CALL + NUM_INSTS_AM_CALL;
                             }
                         }
+                    }
+                    else { // AH
+                        WC = 0;
+                        if (isNodeRT(node) == 1) 
+                            MC = nCall * NUM_INSTS_AH_RETURN; 
+                        else
+                            MC = nCall * NUM_INSTS_AH_CALL; 
                     }
                 }
             }
             else if (node == rootNode) {
-                WC = Cdma(rootNode->EC);
+                //WC = Cdma(rootNode->EC);
+                WC = MC = 0;
             }
 #endif
             if (dbgFlag) {

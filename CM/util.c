@@ -330,6 +330,25 @@ int findTotalCodeSize()
     return size;
 }
 
+int findOriginalCodeSize()
+{
+    int size = 0;
+    int i, n;
+    for (i = 0; i < nFunc; i++) {
+        if (functions[i].nOccurrence < 1) {
+            size += functions[i].size;
+            continue;
+        }
+
+        int sourceIdx = functions[i].entryPoints[0]->ID;
+        int sinkIdx = functions[i].exitPoints[0]->ID;
+
+        for (n = sourceIdx; n <= sinkIdx; n++) {
+            size += (nodes[n]->S * 4);
+        }
+    }
+    return size;
+}
 
 int findMaxFuncSize()
 {

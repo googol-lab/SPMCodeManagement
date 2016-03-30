@@ -26,6 +26,7 @@
 #include "split_wrapper.h"
 
 #include "CM_bblevel.h"
+#include <math.h>
 
 int yyparse();
 
@@ -107,13 +108,14 @@ int main(int argc, const char* argv[])
     // find function sizes
     int maxFuncSize = findMaxFuncSize();
     int totalCodeSize = findTotalCodeSize();
+    int origCodeSize = findOriginalCodeSize();
  
     if (argc == 3)
     {
         if (strcmp(argv[2], "size") == 0)
         {
-            printf("# func: %d, Total Code Size: %d, Max Func Size: %d\n", nFunc, totalCodeSize, maxFuncSize);
-            printf("60%%: %d (%d is 80%% of it), 75%%: %d (%d is 80%% of it)\n", ((int)((float)totalCodeSize*0.6+15)/16)*16, ((int)((float)totalCodeSize*0.6*0.8+15)/16)*16, ((int)((float)totalCodeSize*0.75+15)/16)*16, ((int)((float)totalCodeSize*0.75*0.8+15)/16)*16);
+            printf("# func: %d, # node: %d, Original Code size: %d, Total Code Size after inserting mgmt code: %d, Max Func Size after inserting mgmt code: %d\n", nFunc, nNode, origCodeSize, totalCodeSize, maxFuncSize);
+            //printf("60%%: %d (%d is 80%% of it), 75%%: %d (%d is 80%% of it)\n", ((int)((float)totalCodeSize*0.6+15)/16)*16, ((int)((float)totalCodeSize*0.6*0.8+15)/16)*16, ((int)((float)totalCodeSize*0.75+15)/16)*16, ((int)((float)totalCodeSize*0.75*0.8+15)/16)*16);
             exit(1);
         }
         else if (strcmp(argv[2], "GCCFG") == 0)
@@ -126,8 +128,23 @@ int main(int argc, const char* argv[])
     }
     else if (argc >= 4)
     {
-        SPMSIZE = atoi(argv[2]);
-        printf("SPMSIZE: %d\n",SPMSIZE);
+        if (argv[2][strlen(argv[2])-1] == '%') {
+            char szStr[128] = {0, };
+            strncpy(szStr, argv[2], strlen(argv[2])-1);
+            double percentage = atof(szStr);
+            percentage /= 100;
+
+            int cs = origCodeSize;
+           // int cs = totalCodeSize;
+
+            SPMSIZE = ((int)ceil(cs*percentage/128))*128;
+
+            printf("SPMSIZE: %d\n",SPMSIZE);
+        }
+        else {
+            SPMSIZE = atoi(argv[2]);
+            printf("SPMSIZE: %d\n",SPMSIZE);
+        }
 
         if (strcmp(argv[3], "or") == 0)
             runmode = OPT_R;
@@ -171,15 +188,23 @@ int main(int argc, const char* argv[])
         cache_wcet_analysis(CACHE_MISS_LATENCY);
         break;
     case OPT_R:
+        SPMSIZE -= 4*NUM_INSTS_IN_LOAD;
+        printf("SPMSIZE after allocating load function: %d\n",SPMSIZE);
         cm_region_optimal(NULL);
         break;
     case OPT_RF:
+        SPMSIZE -= 4*NUM_INSTS_IN_LOAD;
+        printf("SPMSIZE after allocating load function: %d\n",SPMSIZE);
         cm_rf_optimal(NULL);
         break;
     case FS:
+        SPMSIZE -= 4*NUM_INSTS_IN_LOAD;
+        printf("SPMSIZE after allocating load function: %d\n",SPMSIZE);
         cm_fs();
         break;
     case HEU:
+        SPMSIZE -= 4*NUM_INSTS_IN_LOAD;
+        printf("SPMSIZE after allocating load function: %d\n",SPMSIZE);
         if (runHeuristic(SPMSIZE) == -1)
             break;
     case FIXED:
@@ -211,9 +236,6 @@ int main(int argc, const char* argv[])
             NUM_BB_LOADED_PER_ITER = nNode*0.1;
             printf("Load %d basic blocks (10%% of total %d basic blocks) per iteration\n", NUM_BB_LOADED_PER_ITER, nNode);
         }
-
-        if (SPMSIZE%256 != 0)
-            printf("SPMSIZE should be a multiple of 256\n");
 
         cm_bblevel();
         break;

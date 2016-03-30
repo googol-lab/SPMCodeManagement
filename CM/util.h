@@ -29,6 +29,7 @@ void printTerminalNodes();
 BBType* getFarthestLoopTail(BBType *node);
 
 int findTotalCodeSize();
+int findOriginalCodeSize();
 int findMaxFuncSize();
 
 void takeOutLiteralPools();

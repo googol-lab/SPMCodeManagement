@@ -12,8 +12,6 @@ int SPMSIZE_IN_BBLEVEL;
 // when 1, assume non-cached main memory accesses
 //#define NO_CACHE_MODE 1
 
-#define NUM_INSTRUCTIONS_FOR_RELOADING 4
-
 // number of basic blocking considered to be loaded in each iteration 
 //#define NUM_BB_LOADED_PER_ITER 10
 extern int NUM_BB_LOADED_PER_ITER;
@@ -250,7 +248,8 @@ int isInLoop(BBType* loopHead, BBType* loopTail, BBType* bb)
         if (isBBInNodeList(node, loopHead->loopTailList) == 0) {
             BBListEntry* succEntry = node->succList;
             while (succEntry) {
-                pushBB(succEntry->BB, &stack);
+                if (succEntry->BB->EC != loopHead->EC || (succEntry->BB->ID >= loopHead->ID && succEntry->BB->ID <= loopTail->ID))
+                    pushBB(succEntry->BB, &stack);
                 succEntry = succEntry->next;
             }
         }
@@ -285,7 +284,7 @@ rpType* getReloadPoint(rpType* listRP, BBType* bb)
             // found!
             if (retRP != NULL) {
                 // get outer loop
-                if (loopHead->N < retRP->loopHead->N) {
+                if (loopHead->ID < retRP->loopHead->ID) {
                     retRP = rpEntry;
                 }
             }
@@ -374,13 +373,13 @@ int addBBForLoading(rpType* listRP, BBType* bb)
             BBType* reloadPoint = loopPreHeader->BB;
 
             // adjust node size for added reload instructions
-            reloadPoint->S += NUM_INSTRUCTIONS_FOR_RELOADING;
+            reloadPoint->S += NUM_INSTS_FOR_SIMPLE_DMA;
 
             // adjust addresses for added reload instructions
             int n;
             for (n = 0; n < nNode; n++) {
                 if (nodes[n]->addr > reloadPoint->addr)
-                    nodes[n]->addr += 4 * NUM_INSTRUCTIONS_FOR_RELOADING;
+                    nodes[n]->addr += 4 * NUM_INSTS_FOR_SIMPLE_DMA;
             }
 
             loopPreHeader = loopPreHeader->next;
@@ -406,13 +405,13 @@ int addBBForLoading(rpType* listRP, BBType* bb)
                     BBType* reloadPoint = loopPreHeader->BB;
 
                     // adjust node size for added reload instructions
-                    reloadPoint->S -= NUM_INSTRUCTIONS_FOR_RELOADING;
+                    reloadPoint->S -= NUM_INSTS_FOR_SIMPLE_DMA;
 
                     // adjust addresses for added reload instructions
                     int n;
                     for (n = 0; n < nNode; n++) {
                         if (nodes[n]->addr > reloadPoint->addr)
-                            nodes[n]->addr -= 4 * NUM_INSTRUCTIONS_FOR_RELOADING;
+                            nodes[n]->addr -= 4 * NUM_INSTS_FOR_SIMPLE_DMA;
                     }
 
                     loopPreHeader = loopPreHeader->next;
@@ -512,13 +511,13 @@ int rmBBForLoading(rpType* listRP, BBType* bb)
                 BBType* reloadPoint = loopPreHeader->BB;
 
                 // adjust node size for added reload instructions
-                reloadPoint->S -= NUM_INSTRUCTIONS_FOR_RELOADING;
+                reloadPoint->S -= NUM_INSTS_FOR_SIMPLE_DMA;
 
                 // adjust addresses for added reload instructions
                 int n;
                 for (n = 0; n < nNode; n++) {
                     if (nodes[n]->addr > reloadPoint->addr)
-                        nodes[n]->addr -= 4 * NUM_INSTRUCTIONS_FOR_RELOADING;
+                        nodes[n]->addr -= 4 * NUM_INSTS_FOR_SIMPLE_DMA;
                 }
 
                 loopPreHeader = loopPreHeader->next;
@@ -559,13 +558,13 @@ int rmBBForLoading(rpType* listRP, BBType* bb)
                     BBType* reloadPoint = loopPreHeader->BB;
 
                     // adjust node size for added reload instructions
-                    reloadPoint->S += NUM_INSTRUCTIONS_FOR_RELOADING;
+                    reloadPoint->S += NUM_INSTS_FOR_SIMPLE_DMA;
 
                     // adjust addresses for added reload instructions
                     int n;
                     for (n = 0; n < nNode; n++) {
                         if (nodes[n]->addr > reloadPoint->addr)
-                            nodes[n]->addr += 4 * NUM_INSTRUCTIONS_FOR_RELOADING;
+                            nodes[n]->addr += 4 * NUM_INSTS_FOR_SIMPLE_DMA;
                     }
 
                     loopPreHeader = loopPreHeader->next;
@@ -717,9 +716,9 @@ int cache_cost(BBType* node)
             return (node->N * node->CACHE_AM * CACHE_MISS_LATENCY) + (CACHE_MISS_LATENCY * node->CACHE_FM * node->N);
     }
     else
-        return node->N * node->S * CACHE_MISS_LATENCY;
+        return node->N * node->S * FETCH_LATENCY;
 #else
-    return node->N * node->S * CACHE_MISS_LATENCY;
+    return node->N * node->S * FETCH_LATENCY;
 #endif
 }
 
@@ -736,6 +735,42 @@ int comp_cost(BBType* node)
 #else
     return 0;
 #endif    
+}
+
+// branching between SPM and main memory may take longer since it may need a long jump.
+// In ARM, a long jump is a branch with 32-bit constant address, which needs one literal pool access before branch
+void add_long_jumps()
+{
+    int i;
+    for (i = 0; i < nNode; i++) {
+        BBType* node = nodes[i];
+
+        BBListEntry* succEntry = node->succList;
+        while (succEntry) {
+            BBType* succNode = succEntry->BB;
+
+            // if mapped on different memory
+            if ((node->bLoaded == 1 && succNode->bLoaded != 1) ||
+                (node->bLoaded != 1 && succNode->bLoaded == 1)) {
+                // check if fall-through edge. Fall through becomes an explicit long jump
+                int n_additional_insts = 0;
+                if (node->addr + 4*node->S == succNode->addr) 
+                    n_additional_insts = 2;
+                else
+                    n_additional_insts = 1;
+
+                node->S += n_additional_insts;
+
+                // adjust addresses for added long jump instructions
+                int n;
+                for (n = 0; n < nNode; n++) {
+                    if (nodes[n]->addr > node->addr)
+                        nodes[n]->addr += 4*n_additional_insts;
+                }
+            }
+            succEntry = succEntry->next;
+        }
+    }
 }
 
 // returns the WCET and WCEP as a BBListEntry
@@ -918,27 +953,27 @@ void cm_bblevel()
     switch (SIZEMODE) {
     case NOCACHE:
         SPMSIZE_IN_BBLEVEL = SPMSIZE;
-        init_cache_analysis(0, 16, 4);
+        init_cache_analysis(0, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     case NOSPM:
         SPMSIZE_IN_BBLEVEL = 0;
-        init_cache_analysis(SPMSIZE, 16, 4);
+        init_cache_analysis(SPMSIZE, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     case C3S1:
         SPMSIZE_IN_BBLEVEL = SPMSIZE/4;
-        init_cache_analysis(SPMSIZE/4*3, 16, 4);
+        init_cache_analysis(SPMSIZE/4*3, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     case C1S3:
         SPMSIZE_IN_BBLEVEL = SPMSIZE/4*3;
-        init_cache_analysis(SPMSIZE/4, 16, 4);
+        init_cache_analysis(SPMSIZE/4, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     case C1S1:
         SPMSIZE_IN_BBLEVEL = SPMSIZE/2;
-        init_cache_analysis(SPMSIZE/2, 16, 4);
+        init_cache_analysis(SPMSIZE/2, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     case DOUBLE:
         SPMSIZE_IN_BBLEVEL = SPMSIZE;
-        init_cache_analysis(SPMSIZE, 16, 4);
+        init_cache_analysis(SPMSIZE, CACHE_BLOCK_SIZE, CACHE_ASSOCIATIVITY);
         break;
     }
 #else 
@@ -968,6 +1003,7 @@ void cm_bblevel()
     WCET = evaluate_WCET(&WCEP, listRP, 0);
     printf("Initial WCET: %u\n", WCET);
 
+    int nUp = 0;
     BBListEntry* listBB = selectMostBeneficialBBs(WCEP, NUM_BB_LOADED_PER_ITER);
     while (listBB) {
         // load these basic blocks until SPM gets full 
@@ -983,7 +1019,12 @@ void cm_bblevel()
         }
 
         unsigned int newWCET = evaluate_WCET(&WCEP, listRP, 0);
-        if (newWCET > WCET) {
+        if (newWCET > WCET) { 
+            if (nUp < 0) {
+                printf("WCET went up to %u.\n", newWCET);
+                nUp++;
+            }
+            else {
             printf("WCET went up to %u. Roll back the changes and finish.\n", newWCET);
             // roll back the changes in this iteration
             lbEntry = listBB;
@@ -996,6 +1037,7 @@ void cm_bblevel()
                 lbEntry = lbEntry->next;
             }
             break;
+            }
         }
         WCET = newWCET;
         printf("WCET went down to %u\n", WCET);
@@ -1005,6 +1047,7 @@ void cm_bblevel()
     }
 
 EXIT_CMBBLEVEL:
+    add_long_jumps();
     evaluate_WCET(&WCEP, listRP, 1);
     freeBBList(&WCEP);
 
