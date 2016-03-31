@@ -91,9 +91,9 @@
 int Cdma(int functionID);
 int CdmaByBytes(int nBytes);
 
-#define NUM_INSTS_FOR_LOAD 14
+#define NUM_INSTS_IN_LOAD 14
 
-#define SIZE_OF_LOAD_FUNCTION (NUM_INSTS_FOR_LOAD+3) // 3 base addresses (function_address, region_address, function_size)
+#define SIZE_OF_LOAD_FUNCTION (NUM_INSTS_IN_LOAD+3) // 3 base addresses (function_address, region_address, function_size)
 
 // 3. call the callee
 //    bl callee
@@ -119,12 +119,12 @@ int CdmaByBytes(int nBytes);
 //  for a hit, either a call or a return needs 5 instructions, and
 //  for a miss, additional 15 or 13 instructions are needed to initiate a DMA
 
-#define NUM_INSTS_AH_CALL NUM_INSTS_FOR_CHCEKING_CALL
+#define NUM_INSTS_AH_CALL NUM_INSTS_FOR_CHECKING_CALL
 #define NUM_INSTS_AH_RETURN NUM_INSTS_FOR_CHECKING_RETURN
 
-#define NUM_INSTS_AM_CALL (NUM_INSTS_FOR_CHECKING_CALL+1+NUM_INSTS_FOR_LOAD) // 1 for calling load
+#define NUM_INSTS_AM_CALL (NUM_INSTS_FOR_CHECKING_CALL+2+NUM_INSTS_IN_LOAD) // 1 for state update and 1 for calling load
 // 8+1+15 = 24
-#define NUM_INSTS_AM_RETURN (NUM_INSTS_FOR_CHECKING_RETURN+1+NUM_INSTS_FOR_LOAD+1) // 1 for calling load and 1 for bl at the end of CALL  
+#define NUM_INSTS_AM_RETURN (NUM_INSTS_FOR_CHECKING_RETURN+2+NUM_INSTS_IN_LOAD+1) // 1 for state update and 1 for calling load and 1 for bl at the end of CALL  
 // 7+1+15+1 = 24
 
 ///////
