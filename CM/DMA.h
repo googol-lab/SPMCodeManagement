@@ -48,55 +48,69 @@
 
 /////////////////////////////////////////
 // What does it take to load a function (whose id is fid) to region (whose id is rid)?
+//  1. call(caller_fid, callee_fid);
+//   -->
+//    push cr_id (caller_fid) to stack
+//    push cl_id (callee_fid) to stack
+//    push all arguments to callee to stack  --- this is not overhead. it's there even without code management
+//    bl call                                
+//  void call()
+//    ld r0, cl_id
+//    ld r1, rid of cl_id 
+//    ld r2, base address region_state
+//    ld r2, region_state[r1]
+//    cmp r2, r0
 
-// 1. Checking the region state
-// load the base address of regionstate array
-// load regionstate[rid] 
-// cmp regionstate[rid] with fid 
+#define NUM_INSTS_FOR_CHECKING_CALL 8
 
-// for a call, rid and fid are constants (total 3 instructions), but 
-// for a return, rid and fid are passed as arguments which should be read from stack (total 3+2=5 instructions)
+//  2. if the function has to be loaded
+//    (1) update the region state
+//    store r0, region_state[r1]  // update the region state
+//    bl load
+//  void load()
+//    (1) dma
+//    ld r2, base address of function_address
+//    ld r2, function_address[r0]
+//    mcr -- set the source address
+//    ld r2, base address of region_address
+//    ld r2, region_address[r1]
+//    mcr -- set the target address
+//    ld r2, base address of function_size
+//    ld r2, function_size[r0]
+//    mcr -- set the transfer size
+//    mcr -- init the DMA
+//    (2) busy-waiting the completion of DMA
+//    wait: mrc (load the DMA channel status register)
+//          cmp
+//          bne (repeat if not completed)
+//    (3) return
+//    bl
 
-#define NUM_INSTS_FOR_CHECKING 3
-
-#define NUM_INSTS_FOR_LOADING_FIDRID 2 
-
-// Till here, at most 4 registers were used. (1 for base address, 1 for rid, 1 for fid,  and 1 for regionstate[rid] value)
-
-// 2. Updating the region state
-// str fid to regionstate[rid]
-
-#define NUM_INSTS_FOR_STATE_UPDATE 1
-
-// 3. Performing DMA
-//      bl function_loading_service_routine (jump to the special function that handles the function loading)
-// Inside function_loading_service_routine,
-//      load the base address of function address array
-//      load function_address[fid]
-//      mcr  set the source address
-//      do similar for region address (destination address) and function size (transfer size)
-//      DMA initiation is another mcr instruction that sets the DMA enable bit.
-//      mov pc, lr
-// In total, 1 + 3*3 + 1 + 1 = 12 instructions
-#define NUM_INSTS_FOR_DMA 12
-
-// 4. Busy-waiting the completion of DMA 
-// wait: mrc ~~ (load the DMA channel status register)
-//       cmp (check if it is finished)
-//       bne wait (if not finished go back to mrc)
-// This means the completion of a DMA is checked every 3 cycle.
-//  If a DMA takes W cycles, the completion is detected at (CEIL(W/3) + 1) * 3 cycles after the initiation of the DMA.
 #define NUM_INSTS_FOR_BUSYWAITING 3
 // This number will be used in the following DMA cost function.
 int Cdma(int functionID);
 int CdmaByBytes(int nBytes);
 
-#define NUM_INSTS_IN_LOAD (NUM_INSTS_FOR_DMA-1+NUM_INSTS_FOR_BUSYWAITING)
+#define NUM_INSTS_FOR_LOAD 14
 
-// 5. Additional overhead
-// At a call, we should pass caller_id and caller_region_id as parameters, so the callee knows who the caller is, which takes 2 additional instructions.
+#define SIZE_OF_LOAD_FUNCTION (NUM_INSTS_FOR_LOAD+3) // 3 base addresses (function_address, region_address, function_size)
 
-#define NUM_INSTS_FOR_ADDITIONAL_OVERHEAD 2
+// 3. call the callee
+//    bl callee
+// 4. check and load for caller
+//    ld r0, cr_id
+//    ld r1, rid of cr_id
+//    ld r2, base address of region_state
+//    ld r2, region_state[r1]
+//    cmp r2, r0
+//    store r0, region_state[r1]  // update the region state
+//    bl load
+// 5. return
+//    bl
+
+#define NUM_INSTS_FOR_CHECKING_RETURN 6
+
+#define SIZE_OF_CALL_FUNCTIONA (16 + 2)   // 16 instructions + 2 base addresses (region_state, region_id)
 
 // Summary
 // For a call, checking = 3, update = 1, DMA = 12, CALL = 2
@@ -105,10 +119,13 @@ int CdmaByBytes(int nBytes);
 //  for a hit, either a call or a return needs 5 instructions, and
 //  for a miss, additional 15 or 13 instructions are needed to initiate a DMA
 
-#define NUM_INSTS_AH_CALL (NUM_INSTS_FOR_CHECKING+NUM_INSTS_FOR_ADDITIONAL_OVERHEAD)
-#define NUM_INSTS_AH_RETURN (NUM_INSTS_FOR_CHECKING+NUM_INSTS_FOR_LOADING_FIDRID)
-#define NUM_INSTS_AM_CALL (NUM_INSTS_AH_CALL+NUM_INSTS_FOR_STATE_UPDATE+NUM_INSTS_FOR_LOADING_FIDRID+NUM_INSTS_FOR_DMA)
-#define NUM_INSTS_AM_RETURN (NUM_INSTS_AH_RETURN+NUM_INSTS_FOR_STATE_UPDATE+NUM_INSTS_FOR_DMA)
+#define NUM_INSTS_AH_CALL NUM_INSTS_FOR_CHCEKING_CALL
+#define NUM_INSTS_AH_RETURN NUM_INSTS_FOR_CHECKING_RETURN
+
+#define NUM_INSTS_AM_CALL (NUM_INSTS_FOR_CHECKING_CALL+1+NUM_INSTS_FOR_LOAD) // 1 for calling load
+// 8+1+15 = 24
+#define NUM_INSTS_AM_RETURN (NUM_INSTS_FOR_CHECKING_RETURN+1+NUM_INSTS_FOR_LOAD+1) // 1 for calling load and 1 for bl at the end of CALL  
+// 7+1+15+1 = 24
 
 ///////
 // Simple DMA that does not use fid or rid.
